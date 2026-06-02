@@ -508,11 +508,10 @@ Traceback (most recent call last):
 
 **6. 발견(한 소스부터).** 네이버 하나만 — 검색 → URL 목록 → 큐 적재. 디스패처 + cron 트리거 + 실행 겹침 잠금. 한 소스로 끝까지 동작시킨 뒤 다음·구글·웨이보를 같은 인터페이스로 추가.
 → 검증: 키워드 하나로 발견 → 큐에 URL이 쌓이고 5단계 워커가 처리(발견+추출이 처음 이어지는 순간).
-✅ **완료 (2026-05-31)**: 네이버(정적 HTML, start 파라미터), 다음(정적 HTML, p 파라미터), 구글(RSS) 어댑터 구현. 디스패처 구현(`FOR UPDATE SKIP LOCKED` 원자 점유, next_discover_at 즉시 갱신). `python -m news_crawler --role discovery --portal all` 동작 확인.
 
-**7. 나머지 소스 어댑터.** 다음 → 구글(헤드리스 필요) → 웨이보(전략 확정 후). 8절 소스별 발견 전략 적용.
-✅ **완료 (2026-05-31)**: 다음(정적 HTML), 구글(RSS — headless 불필요). 웨이보는 미구현(전략 미확정).
-- 구글: `tbs=qdr:d,srt:n` 정적 HTTP는 JS 렌더링 필요로 작동 안 함 → RSS(`news.google.com/rss/search`) 사용. headless 없이 111개/회 안정적 수집 가능.
+**7. 나머지 소스 어댑터.** 다음 → 구글 → 웨이보(전략 확정 후). 8절 소스별 발견 전략 적용.
+- 구글: `google.com/search?tbm=nws` 를 undetected-chromedriver 로 스크랩. RSS는 CBMi 리다이렉트 문제로 미사용 (`decisions/google-discovery.md` 참고).
+- 웨이보: 미구현 (전략 미확정).
 
 **8. 규칙 엔진 + 핫리로드.** `rules_json` 해석기 + TTL 캐시 + 규칙 우선 체인.
 

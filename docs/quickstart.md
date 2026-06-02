@@ -32,25 +32,25 @@ playwright install chromium
 
 ### .env 파일 작성
 
-프로젝트 루트에 `.env` 파일을 만든다.  
-`.env` 파일은 Git에 올라가지 않으니 팀원에게 직접 받아야 한다.
+환경별로 파일이 분리돼 있다. `APP_ENV` 환경변수로 선택한다.
 
-최소 필수 항목:
+| 환경 | 파일 | APP_ENV |
+|------|------|---------|
+| 로컬 Windows | `.env.local` | 미설정 (기본값 `local`) |
+| Ubuntu 서버 | `.env.dev` | `dev` |
+
+두 파일 모두 Git에 올라가지 않는다 (`.gitignore`의 `.env.*` 규칙).  
+팀원에게 직접 받아서 프로젝트 루트에 복사한다.
+
+**Ubuntu 서버에서 실행 시:**
 ```bash
-# RDS (SSH 터널 없이 직접 접속하는 경우)
-RDS_HOST=your-db-host
-RDS_PORT=3306
-RDS_USER=admin
-RDS_PASSWORD=your-password
-RDS_DB=news_crawler
-
-# SSH 터널 사용 시 (EC2 → RDS 구조)
-TUNNEL_ENABLED=true
-TUNNEL_SSH_HOST=your-ec2-host
-TUNNEL_SSH_KEY_PATH=C:/Users/yourname/.ssh/your-key.pem
+export APP_ENV=dev
+python -m news_crawler --role discovery --portal naver
 ```
 
-나머지 항목은 기본값이 있으므로 처음에는 생략해도 된다.
+또는 systemd/Docker 환경변수로 `APP_ENV=dev` 주입.
+
+`.env.local` / `.env.dev` 파일이 없으면 `.env` 로 폴백된다.
 
 ---
 

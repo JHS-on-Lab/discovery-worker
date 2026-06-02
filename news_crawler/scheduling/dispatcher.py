@@ -45,6 +45,10 @@ def run_discovery_loop(portal: str, worker_id: str) -> None:
         extra={"phase": "startup", "worker_id": worker_id, "component": "dispatcher"},
     )
 
+    # adapter 는 루프 레벨에서 한 번 생성해 키워드마다 재사용한다.
+    # UCGoogleAdapter 처럼 브라우저를 초기화하는 경우 매 키워드마다 재생성하면 낭비가 크다.
+    adapter = make_adapter(portal) if portal.upper() != "ALL" else None
+
     heartbeat_interval = config.HEARTBEAT_INTERVAL_SECONDS
     last_heartbeat = time.monotonic()
     processed = 0
@@ -54,36 +58,40 @@ def run_discovery_loop(portal: str, worker_id: str) -> None:
         url_repo  = ArticleUrlRepo(engine)
         log_repo  = CollectionLogRepo(engine)
 
-        while True:
-            now = time.monotonic()
-            if now - last_heartbeat >= heartbeat_interval:
-                logger.info(
-                    f"heartbeat processed={processed}",
-                    extra={"phase": "heartbeat", "worker_id": worker_id, "component": "dispatcher"},
-                )
-                last_heartbeat = now
-                _healthcheck.write()
+        try:
+            while True:
+                now = time.monotonic()
+                if now - last_heartbeat >= heartbeat_interval:
+                    logger.info(
+                        f"heartbeat processed={processed}",
+                        extra={"phase": "heartbeat", "worker_id": worker_id, "component": "dispatcher"},
+                    )
+                    last_heartbeat = now
+                    _healthcheck.write()
 
-            try:
-                kw = kw_repo.claim_next(portal=portal, worker_id=worker_id)
-            except Exception:
-                logger.exception(
-                    f"claim_next failed, sleeping {_ERROR_SLEEP_SEC}s",
-                    extra={"phase": "claim", "worker_id": worker_id, "component": "dispatcher"},
-                )
-                time.sleep(_ERROR_SLEEP_SEC)
-                continue
+                try:
+                    kw = kw_repo.claim_next(portal=portal, worker_id=worker_id)
+                except Exception:
+                    logger.exception(
+                        f"claim_next failed, sleeping {_ERROR_SLEEP_SEC}s",
+                        extra={"phase": "claim", "worker_id": worker_id, "component": "dispatcher"},
+                    )
+                    time.sleep(_ERROR_SLEEP_SEC)
+                    continue
 
-            if kw is None:
-                logger.debug(
-                    f"no due keywords for portal={portal}, sleeping {_IDLE_SLEEP_SEC}s",
-                    extra={"phase": "idle", "worker_id": worker_id, "component": "dispatcher"},
-                )
-                time.sleep(_IDLE_SLEEP_SEC)
-                continue
+                if kw is None:
+                    logger.debug(
+                        f"no due keywords for portal={portal}, sleeping {_IDLE_SLEEP_SEC}s",
+                        extra={"phase": "idle", "worker_id": worker_id, "component": "dispatcher"},
+                    )
+                    time.sleep(_IDLE_SLEEP_SEC)
+                    continue
 
-            _run_one(kw, kw_repo, url_repo, log_repo, worker_id)
-            processed += 1
+                _run_one(kw, kw_repo, url_repo, log_repo, worker_id, adapter)
+                processed += 1
+        finally:
+            if adapter and hasattr(adapter, "close"):
+                adapter.close()
 
 
 def _run_one(
@@ -92,6 +100,7 @@ def _run_one(
     url_repo: ArticleUrlRepo,
     log_repo: CollectionLogRepo,
     worker_id: str,
+    adapter=None,
 ) -> None:
     """키워드 하나를 발견한다. 실패해도 예외를 밖으로 올리지 않아 루프가 멈추지 않는다."""
     keyword    = kw["keyword"]
@@ -103,11 +112,11 @@ def _run_one(
 
     started_at   = datetime.now(KST)
     started_mono = time.monotonic()
-    # try 안에서 초기화하면 except 블록에서 NameError 가 발생할 수 있어 밖에서 초기화한다.
     total_found = total_ins = total_skp = 0
 
     try:
-        adapter = make_adapter(portal)
+        if adapter is None:
+            adapter = make_adapter(portal)
         cursor, page = None, 1
 
         while True:

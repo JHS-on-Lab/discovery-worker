@@ -1,91 +1,63 @@
-# Google 뉴스 발견 방식 결정 기록
+# Google 뉴스 발견 방식
 
-> 상태: **구현 완료 (RSS 방식)** / 미결 사항 있음
-> 작성일: 2026-05-31
+## 현재 구현
 
----
+`UCGoogleAdapter` — `GOOGLE_DISCOVERY_MODE` 환경변수로 수집 방식을 선택한다.
 
-## 1. 현재 구현 방식 — Google News RSS
+### search 모드 (기본)
 
-**엔드포인트**
+`google.com/search?q={keyword}&tbm=nws` 를 Chrome으로 스크랩.
+
+- 언론사 직접 URL 반환, 리다이렉트 불필요
+- `&start=N` 페이지네이션으로 100개 한도 없음
+
+### rss 모드 (봇 차단 시 대안)
+
+Google News RSS 피드를 HTTP로 가져온 뒤, CBMi 리다이렉트 URL을 Chrome으로 변환.
+
+- RSS는 HTTP로 빠르게 가져오고 (최대 ~100건), Chrome은 URL 변환에만 사용
+- 페이지네이션 없음 (단일 호출)
+- search 모드가 봇 감지로 막혔을 때 `.env`에서 전환
+
+```bash
+GOOGLE_DISCOVERY_MODE=search   # 기본
+GOOGLE_DISCOVERY_MODE=rss      # 봇 차단 시
 ```
-GET https://news.google.com/rss/search?q={keyword}&hl=ko&gl=KR&ceid=KR:ko
-```
 
-**동작 방식**
-- 구글이 공식으로 제공하는 RSS 피드 (application/xml)
-- 단순 HTTP GET 1회 → XML 파싱 → 기사 URL 추출
-- Playwright/headless 브라우저 없이 동작
+**headless 모드 불가**: headless(구형·신형 모두) 는 Google Bot 감지에 걸린다. `headless=False` 로 실제 브라우저를 구동한다.
 
-**기사 URL 형태**
-- `https://news.google.com/rss/articles/CBMi...` (구글 리다이렉트 URL)
-- 실제 언론사 URL이 아니며, 추출 단계에서 리다이렉트를 따라가야 원본 URL 획득 가능
-
-**날짜 필터**
-- RSS 파라미터로 기간 필터 불가
-- 응답의 `pubDate` 필드를 코드에서 직접 비교해 `cutoff_days` 이내 기사만 선택
+| 환경 | 처리 방식 |
+|------|-----------|
+| Windows 로컬 | `--window-position=-32000,-32000` 으로 창을 화면 밖으로 이동 |
+| Linux Docker | `xvfb-run` 가상 디스플레이 (`deployment.md` 참고) |
 
 ---
 
-## 2. RSS 방식의 장점
+## max_pages 선정 기준 (search 모드)
 
-- 봇 탐지 없음 (공식 피드)
-- headless 브라우저 불필요 → 컨테이너 경량, 의존성 단순
-- 응답에 제목·발행일·출처가 포함되어 있어 별도 파싱 불필요
-- 차단·캡차 위험 없음
+페이지당 10건, `delay_sec=1.5` 기준.
 
----
+| max_pages | 최대 수집 | 소요 시간(최소) | 권장 상황 |
+|-----------|-----------|----------------|-----------|
+| 3 | 30건 | ~5초 | 소규모 키워드, 수집 주기가 짧을 때 |
+| **5 (기본)** | **50건** | **~8초** | **일반적인 인기 키워드** |
+| 10 | 100건 | ~15초 | 전수 수집이 필요할 때 |
 
-## 3. RSS 방식의 제약
-
-| 항목 | 내용 |
-|---|---|
-| 최대 기사 수 | **100개 고정** (구글 정책, 파라미터로 조절 불가) |
-| 페이지네이션 | 없음 — 단일 응답 |
-| 기사 URL | 구글 리다이렉트 URL (`CBMi...`), 추출 시 추가 처리 필요 |
-| 날짜 필터 정밀도 | 코드 레벨 필터 (서버 사이드 필터 없음) |
-| 정렬 기준 | 구글 알고리즘 순 (최신순 강제 불가) |
+**5페이지 이상은 권장하지 않는 이유**
+- `tbs=qdr:d`(1일) 기준으로 핵심 기사는 1~3페이지에 집중됨
+- 4페이지 이후는 중복·관련성 낮은 기사 비율 증가
+- 페이지 수가 많을수록 Bot 감지 리스크 상승
+- 더 많이 필요하면 `GOOGLE_DISCOVERY_MODE=rss` 전환이 효율적 (~100건, 단일 호출)
 
 ---
 
-## 4. 미결 사항 — 하루 100개 이상 필요한 경우
+## RSS 방식을 버린 이유
 
-현재 구현은 키워드 하나당 하루 최대 100개로 고정된다.  
-이 한계를 넘어야 할 경우 방식 변경이 필요하다. 아래 선택지가 있으며 **아직 결정되지 않았다.**
+Google News RSS(`news.google.com/rss/search`)는 기사 URL이 `CBMi...` 형태의 Google 내부 리다이렉트 URL이다. 실제 언론사 URL로 해소하는 방법을 모두 시도했으나 실패했다.
 
-### 선택지 A — news.google.com 웹 드라이버 스크래핑
-- `news.google.com/search?q=...` 를 Playwright로 렌더링 (구글 뉴스 전용 사이트)
-- 무한 스크롤 방식 → 스크롤할수록 추가 기사 로드, 100개 이상 수집 가능
-- `google.com/search`보다 안티봇 강도가 낮을 수 있으나 미검증
-- headless 브라우저 의존성 추가 (컨테이너 이미지 크기 증가, 폰트 설정 필요)
-- 기사 URL이 RSS와 동일한 `news.google.com/...` 리다이렉트 형태
+| 시도 | 결과 |
+|------|------|
+| HTTP HEAD/GET + follow_redirects | `302 → Google News SPA(200)` 에서 끊김 |
+| Playwright headless | Google Bot 감지 → 400 Bad Request |
+| CBMi base64 디코딩 | protobuf 구조라 단순 디코딩 불가 |
 
-### 선택지 B — 구글 통합검색 뉴스탭 웹 드라이버 스크래핑
-- `google.com/search?q=...&tbm=nws` 를 Playwright로 렌더링
-- 페이지네이션으로 100개 이상 수집 가능, 기사 URL이 언론사 직접 URL
-- 안티봇이 가장 공격적 — 캡차 발생 가능성, IP 차단 위험 높음
-- headless 브라우저 의존성 추가
-
-### 선택지 C — 구글 Custom Search API
-- 공식 API, 차단 위험 없음
-- 하루 100건 무료 / 초과 시 유료 ($5 per 1,000 queries)
-- API 키 관리, 쿼터 모니터링 필요
-
-### 선택지 D — 복수 키워드로 분산
-- 단일 키워드 대신 세부 키워드로 분리 ("삼성전자 반도체", "삼성전자 실적" 등)
-- 각각 100개 수집 → 합산
-- 중복 URL은 `url_hash`로 자동 제거
-- 키워드 설계를 별도로 해야 함
-
-### 선택지 E — 현행 유지 (100개로 충분한지 확인 후 결정)
-- 실제 운영 데이터를 보고 100개 한계가 문제가 되는지 먼저 확인
-- 문제가 확인된 후 A/B/C/D 중 결정
-
----
-
-## 5. 결정 필요 시점
-
-아래 조건 중 하나가 충족되면 이 아젠다를 다시 검토한다.
-
-- 키워드 하나에서 하루 100개 미만 수집이 반복적으로 관찰될 때 (과소 수집 우려)
-- 비즈니스 요구상 특정 키워드의 전수 수집이 필요해질 때

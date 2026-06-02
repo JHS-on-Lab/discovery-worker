@@ -72,6 +72,7 @@ with db_context() as engine:
             fr = fetcher.fetch(url)
         except Exception as exc:
             code, is_perm = classify_exception(exc)
+            domain_repo.upsert_health(host, success=False, body_len=None)
             url_repo.mark_failed(item["id"], code, str(exc), is_perm,
                                   None if is_perm else next_retry_at(attempt))
             failed += 1
@@ -80,6 +81,7 @@ with db_context() as engine:
 
         if fr.status_code >= 400:
             code, is_perm = classify_http(fr.status_code)
+            domain_repo.upsert_health(host, success=False, body_len=None)
             url_repo.mark_failed(item["id"], code, f"HTTP {fr.status_code}", is_perm,
                                   None if is_perm else next_retry_at(attempt))
             failed += 1
@@ -90,6 +92,7 @@ with db_context() as engine:
         result = extractor.extract(url=fr.url, html=fr.html, host=host,
                                    portal_type=portal, keyword=keyword)
         if isinstance(result, ExtractionFailure):
+            domain_repo.upsert_health(host, success=False, body_len=None)
             if attempt + 1 >= config.MAX_ATTEMPTS:
                 url_repo.mark_dead(item["id"], result.error_code, result.error_msg)
             else:

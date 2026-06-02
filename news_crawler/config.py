@@ -13,8 +13,13 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# .env 파일을 읽어 환경변수에 추가한다. 이미 설정된 환경변수는 덮어쓰지 않는다.
-load_dotenv(Path(__file__).parent.parent / ".env")
+# .env (공통) 먼저 로드 후 .env.{APP_ENV} 로 override.
+#   로컬 Windows : APP_ENV 미설정 → .env + .env.local
+#   Ubuntu 서버  : APP_ENV=dev   → .env + .env.dev
+_root = Path(__file__).parent.parent
+load_dotenv(_root / ".env")
+_app_env = os.getenv("APP_ENV", "local")
+load_dotenv(_root / f".env.{_app_env}", override=True)
 
 
 def _env(key: str, default: str = "") -> str:
@@ -49,9 +54,14 @@ WORKER_ID              = _env("WORKER_ID", "worker-1")
 EXTRACTION_CONCURRENCY = _env_int("EXTRACTION_CONCURRENCY", 4)
 
 # Fetcher
-DEFAULT_CRAWL_DELAY_MS = _env_int("DEFAULT_CRAWL_DELAY_MS", 1000)
-DEFAULT_RENDER_MODE    = _env("DEFAULT_RENDER_MODE", "static")
-PROXY_PROVIDER         = _env("PROXY_PROVIDER", "direct")
+DEFAULT_CRAWL_DELAY_MS  = _env_int("DEFAULT_CRAWL_DELAY_MS", 1000)
+DEFAULT_RENDER_MODE     = _env("DEFAULT_RENDER_MODE", "static")
+PROXY_PROVIDER          = _env("PROXY_PROVIDER", "direct")
+
+# Google 발견 모드
+# search: google.com/search?tbm=nws 스크랩 (기본)
+# rss:    Google News RSS + Chrome CBMi URL 변환 (봇 차단 시 대안)
+GOOGLE_DISCOVERY_MODE   = _env("GOOGLE_DISCOVERY_MODE", "search")
 
 # Sink
 SINK_TYPE       = _env("SINK_TYPE", "file")   # file | solr

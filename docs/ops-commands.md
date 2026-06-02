@@ -80,6 +80,18 @@ UPDATE keyword SET next_discover_at = NOW() WHERE portal_type = 'NAVER' AND enab
 > 같은 포털 워커 N대가 동시에 돌아도 같은 키워드를 중복 처리하지 않는다.  
 > 점유 즉시 `next_discover_at` 을 `interval_seconds` 뒤로 갱신하므로 트랜잭션 완료 전에도 재점유 불가.
 
+### Google 수집 모드 전환
+
+봇 감지로 Google 검색 수집이 막혔을 때 RSS 모드로 전환한다.
+
+```bash
+# .env.local 또는 .env.dev 수정
+GOOGLE_DISCOVERY_MODE=search   # 기본 — google.com/search 스크랩 (~50건/회)
+GOOGLE_DISCOVERY_MODE=rss      # 대안 — RSS + Chrome CBMi 변환 (~100건/회)
+```
+
+변경 후 Google 워커를 재시작하면 즉시 적용된다.
+
 ### 수동 발견 (특정 키워드, 즉시)
 ```bash
 # 기본 (1일치, 최대 3페이지)
@@ -90,21 +102,19 @@ UPDATE keyword SET next_discover_at = NOW() WHERE portal_type = 'NAVER' AND enab
 # 페이지 수 조정 (NAVER/DAUM)
 .venv\Scripts\python.exe scripts\run_discovery.py --keyword "삼성전자" --portal NAVER --pages 10
 
-# 기간 변경
+# 기간 변경 (NAVER/DAUM 전용)
 #   NAVER  pd: 4=1일(기본) 1=1주 2=1개월 3=오늘
 #   DAUM period: d=1일(기본) w=1주 m=1개월
-#   GOOGLE days: N일치 (기본 1)
 .venv\Scripts\python.exe scripts\run_discovery.py --keyword "삼성전자" --portal NAVER  --period 1
 .venv\Scripts\python.exe scripts\run_discovery.py --keyword "삼성전자" --portal DAUM   --period w
-.venv\Scripts\python.exe scripts\run_discovery.py --keyword "삼성전자" --portal GOOGLE --period 3
 ```
 
 ### 어댑터 미리보기 (DB 저장 없음)
 ```bash
 # 셀렉터 파손 확인, 키워드 등록 전 결과 검토
 .venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal NAVER
-.venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal DAUM  --pages 3
-.venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal GOOGLE --days 2
+.venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal DAUM   --pages 3
+.venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal GOOGLE --pages 2
 ```
 
 ### 발견 이력 조회
@@ -335,6 +345,23 @@ UPDATE domain SET cooldown_until = NULL WHERE host = 'www.example.com';
 # 현재 설정 조회
 .venv\Scripts\python.exe scripts\add_domain_rule.py --host www.example.com --show
 ```
+
+---
+
+## 테이블 초기화
+
+```bash
+# 특정 테이블만 비우기
+.venv\Scripts\python.exe scripts\truncate_table.py --table article_url
+.venv\Scripts\python.exe scripts\truncate_table.py --table collection_log
+.venv\Scripts\python.exe scripts\truncate_table.py --table domain
+.venv\Scripts\python.exe scripts\truncate_table.py --table keyword
+
+# 전체 테이블 한번에 비우기
+.venv\Scripts\python.exe scripts\truncate_table.py --all
+```
+
+현재 행 수를 확인한 뒤 `yes` 입력 시 실행된다.
 
 ---
 

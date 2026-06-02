@@ -212,6 +212,7 @@ def _process_one(
         sink.write(result)
     except Exception as exc:
         logger.exception(f"sink write failed url={url}", extra=extra)
+        domain_repo.upsert_health(host, success=False, body_len=None)
         url_repo.mark_failed(
             item_id,
             error_code=ErrorCode.UNKNOWN,

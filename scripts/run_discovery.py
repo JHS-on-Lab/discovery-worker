@@ -5,7 +5,7 @@ dispatcher 없이 특정 키워드만 즉시 수집할 때 사용.
 실행:
   python scripts/run_discovery.py --keyword "삼성전자" --portal NAVER
   python scripts/run_discovery.py --keyword "삼성전자" --portal DAUM  --pages 5
-  python scripts/run_discovery.py --keyword "삼성전자" --portal GOOGLE --period 2
+  python scripts/run_discovery.py --keyword "삼성전자" --portal GOOGLE --pages 3
 """
 
 import sys, argparse, time
@@ -29,13 +29,13 @@ p = argparse.ArgumentParser()
 p.add_argument("--keyword", required=True)
 p.add_argument("--portal",  required=True, choices=["NAVER", "DAUM", "GOOGLE", "WEIBO"])
 p.add_argument("--pages",   type=int, default=3, help="최대 페이지 수 (NAVER/DAUM)")
-p.add_argument("--period",  default="",   help="기간 (NAVER: 4=1일 / DAUM: d=1일 / GOOGLE: N일)")
+p.add_argument("--period",  default="",   help="기간 (NAVER: 4=1일 / DAUM: d=1일)")
 p.add_argument("--worker-id", default="manual")
 args = p.parse_args()
 
 # 포털별 기본 기간 설정
 if not args.period:
-    args.period = {"NAVER": "4", "DAUM": "d", "GOOGLE": "1"}.get(args.portal, "")
+    args.period = {"NAVER": "4", "DAUM": "d"}.get(args.portal, "")
 
 # 어댑터 생성 (portal + period 반영)
 if args.portal == "NAVER":
@@ -45,8 +45,8 @@ elif args.portal == "DAUM":
     from news_crawler.adapters.daum import DaumAdapter
     adapter = DaumAdapter(period=args.period, max_pages=args.pages)
 elif args.portal == "GOOGLE":
-    from news_crawler.adapters.google import GoogleAdapter
-    adapter = GoogleAdapter(cutoff_days=int(args.period) if args.period else 1)
+    from news_crawler.adapters.google import UCGoogleAdapter
+    adapter = UCGoogleAdapter(max_pages=args.pages)
 else:
     adapter = make_adapter(args.portal)
 
@@ -90,6 +90,8 @@ with db_context() as engine:
 
     duration_ms = int((time.monotonic() - started_mono) * 1000)
 
+    kw_repo.complete(keyword_id)
+
     # collection_log 기록
     log_repo.insert_discovery(DiscoveryLog(
         keyword_id    = keyword_id,
@@ -103,3 +105,6 @@ with db_context() as engine:
     ))
 
     print(f"\n[완료] 신규 {total_ins}개  중복 {total_skp}개  소요 {duration_ms/1000:.1f}초")
+
+if hasattr(adapter, "close"):
+    adapter.close()

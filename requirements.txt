@@ -10,11 +10,16 @@ paramiko==3.5.1
 # Config
 python-dotenv==1.1.0
 
-# HTTP / Headless (3단계 이후)
+# HTTP / Headless
 httpx==0.28.1
 playwright==1.52.0
 
-# Extraction (4단계 이후)
+# Google 뉴스 수집 (undetected-chromedriver)
+undetected-chromedriver>=3.5.5
+selenium>=4.0.0
+setuptools  # Python 3.12+ 에서 distutils 대체
+
+# Extraction
 trafilatura==2.0.0
 readability-lxml==0.8.3
 lxml==5.4.0

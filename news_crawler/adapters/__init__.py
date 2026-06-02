@@ -14,8 +14,8 @@ def make_adapter(portal_type: str) -> SourceAdapter:
         from news_crawler.adapters.daum import DaumAdapter
         return DaumAdapter()
     if pt == "GOOGLE":
-        from news_crawler.adapters.google import GoogleAdapter
-        return GoogleAdapter()
+        from news_crawler.adapters.google import UCGoogleAdapter
+        return UCGoogleAdapter()
     if pt == "WEIBO":
         from news_crawler.adapters.weibo import WeiboAdapter
         return WeiboAdapter()

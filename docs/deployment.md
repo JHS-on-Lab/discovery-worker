@@ -1,6 +1,5 @@
 # 컨테이너 배포 설계
 
-> **상태**: 설계 단계 — 미구현  
 > 단일 VM 위에 역할별 컨테이너를 Docker Compose 로 운영하는 방안을 정의한다.
 
 ---
@@ -109,11 +108,16 @@ services:
     restart: unless-stopped
 
   discovery-google:
-    build: .
-    command: python -m news_crawler --role discovery --portal google --worker-id google-1
+    build:
+      context: .
+      dockerfile: Dockerfile.google
+    command: >
+      xvfb-run --server-args="-screen 0 1920x1080x24"
+      python -m news_crawler --role discovery --portal google --worker-id google-1
     env_file: .env
     volumes:
       - ./logs:/app/logs
+    shm_size: 256mb
     restart: unless-stopped
 
   extractor:
@@ -166,7 +170,9 @@ docker compose up -d --scale extractor=1
 
 ---
 
-## Dockerfile 설계 (예시)
+## Dockerfile 설계
+
+### 기본 이미지 (Naver / Daum / Extractor 공통)
 
 ```dockerfile
 FROM python:3.11-slim
@@ -176,15 +182,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# headless 렌더링이 필요하면 아래 주석 해제
-# RUN playwright install chromium --with-deps
-
 COPY news_crawler/ ./news_crawler/
 COPY migrations/ ./migrations/
 COPY alembic.ini .
 
-# 워커가 heartbeat 주기마다 /tmp/healthcheck 를 갱신한다.
-# 120s(기본 heartbeat 60s × 2) 이상 갱신 없으면 unhealthy.
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
   CMD python -c \
     "import time, pathlib; t=float(pathlib.Path('/tmp/healthcheck').read_text()); exit(0 if time.time()-t < 120 else 1)" \
@@ -192,6 +193,78 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
 
 CMD ["python", "-m", "news_crawler", "--role", "discovery", "--portal", "all"]
 ```
+
+### Google Discovery 이미지 (Chrome + Xvfb 필요)
+
+headless 모드(구형·신형 모두)는 Google Bot 감지에 걸린다.
+`headless=False` 로 실제 브라우저로 실행하며, Linux 컨테이너에서는 Xvfb 가상 디스플레이가 필요하다.
+Windows 로컬 개발에서는 창이 화면 밖으로 자동 이동된다.
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Chrome + Xvfb 설치
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget gnupg xvfb \
+    fonts-nanum \
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub \
+       | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] \
+       http://dl.google.com/linux/chrome/deb/ stable main" \
+       > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY news_crawler/ ./news_crawler/
+COPY migrations/ ./migrations/
+COPY alembic.ini .
+
+HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
+  CMD python -c \
+    "import time, pathlib; t=float(pathlib.Path('/tmp/healthcheck').read_text()); exit(0 if time.time()-t < 120 else 1)" \
+  || exit 1
+
+CMD ["xvfb-run", "--server-args=-screen 0 1920x1080x24", \
+     "python", "-m", "news_crawler", "--role", "discovery", "--portal", "google"]
+```
+
+**`fonts-nanum` 설치 이유**: Chrome 이 한글을 렌더링할 때 폰트가 없으면 글자가 깨져
+셀렉터가 예상치 못한 방식으로 동작할 수 있다.
+
+**`--start-period=60s`**: Chrome 초기화가 일반 워커보다 오래 걸린다.
+
+### docker-compose 서비스 분리 예시
+
+```yaml
+  discovery-naver:
+    build:
+      context: .
+      dockerfile: Dockerfile          # 기본 이미지
+    command: python -m news_crawler --role discovery --portal naver --worker-id naver-1
+    env_file: .env.dev
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  discovery-google:
+    build:
+      context: .
+      dockerfile: Dockerfile.google   # Chrome 이미지
+    command: python -m news_crawler --role discovery --portal google --worker-id google-1
+    env_file: .env.dev
+    volumes:
+      - ./logs:/app/logs
+    shm_size: 256mb                   # Chrome 공유 메모리 부족 방지
+    restart: unless-stopped
+```
+
+**`shm_size: 256mb`**: Chrome 은 `/dev/shm` 을 렌더링 버퍼로 사용한다.
+Docker 기본값(64MB)으로는 부족해 크래시가 발생할 수 있다.
 
 ---
 
