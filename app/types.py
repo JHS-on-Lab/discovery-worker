@@ -18,7 +18,7 @@ class PortalType(str, Enum):
     NAVER_NEWS  = "NAVER_NEWS"
     DAUM_NEWS   = "DAUM_NEWS"
     GOOGLE_NEWS = "GOOGLE_NEWS"
-    WEIBO       = "WEIBO"
+    BAIDU_NEWS  = "BAIDU_NEWS"
     NAVER_STOCK = "NAVER_STOCK"
 
 

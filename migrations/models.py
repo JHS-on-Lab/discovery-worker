@@ -24,7 +24,7 @@ keyword = Table(
     Column("keyword",          String(255), nullable=False,
            comment="검색어 또는 식별자. NAVER_STOCK 은 종목코드 (예: 005930)"),
     Column("portal_type",      String(20),  nullable=False,
-           comment="NAVER_NEWS | DAUM_NEWS | GOOGLE_NEWS | WEIBO | NAVER_STOCK"),
+           comment="NAVER_NEWS | DAUM_NEWS | GOOGLE_NEWS | BAIDU_NEWS | NAVER_STOCK"),
     Column("display_name",     String(100), nullable=True,
            comment="사람이 읽기 쉬운 라벨. NAVER_STOCK: 종목명, GOOGLE: 다국어 키워드 설명 등"),
     # ── 상태 / 설정 ───────────────────────────────────────────────────────

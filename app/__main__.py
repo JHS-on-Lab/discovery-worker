@@ -26,7 +26,7 @@ from app import logging_setup
 from app import config
 
 _ROLES   = ("discovery", "extraction")
-_PORTALS = ("naver_news", "daum_news", "google_news", "weibo", "naver_stock", "all")
+_PORTALS = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock", "all")
 
 
 def _parse_args() -> argparse.Namespace:

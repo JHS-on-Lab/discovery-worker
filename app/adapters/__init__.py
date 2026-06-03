@@ -16,9 +16,9 @@ def make_adapter(portal_type: str) -> SourceAdapter:
     if pt == "GOOGLE_NEWS":
         from app.adapters.google_news import UCGoogleNewsAdapter
         return UCGoogleNewsAdapter()
-    if pt == "WEIBO":
-        from app.adapters.weibo import WeiboAdapter
-        return WeiboAdapter()
+    if pt == "BAIDU_NEWS":
+        from app.adapters.baidu_news import BaiduNewsAdapter
+        return BaiduNewsAdapter()
     if pt == "NAVER_STOCK":
         from app.adapters.naver_stock import NaverStockAdapter
         return NaverStockAdapter()

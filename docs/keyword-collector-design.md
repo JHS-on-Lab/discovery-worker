@@ -9,7 +9,7 @@
 
 키워드 기반으로 여러 포털·소스를 탐색해, 발견된 콘텐츠의 **URL·제목·본문·메타데이터**를 수집·저장하는 서비스다. 단발 스크립트가 아니라 운영(operation)을 전제로 한다.
 
-- **대상 소스**: 네이버(뉴스·증권 종목토론), 다음 뉴스, 구글 뉴스, 웨이보 (`portal_type`: `NAVER_NEWS`, `NAVER_STOCK`, `DAUM_NEWS`, `GOOGLE_NEWS`, `WEIBO`)
+- **대상 소스**: 네이버(뉴스·증권 종목토론), 다음 뉴스, 구글 뉴스, 바이두 뉴스 (`portal_type`: `NAVER_NEWS`, `NAVER_STOCK`, `DAUM_NEWS`, `GOOGLE_NEWS`, `BAIDU_NEWS`)
 - **수집 단위**: 키워드. 키워드는 RDB에 저장되며 각 키워드는 `portal_type`을 가진다.  
   뉴스 포털은 검색어, 증권 종목토론은 종목코드 등이 키워드가 된다.
 - **수집 대상의 핵심**: 본문 전문(full text). 이것이 빠지면 의미가 없다.
@@ -36,7 +36,7 @@
 ```mermaid
 flowchart LR
   KW[(keyword<br/>RDB)] --> DISP[Discovery dispatcher<br/>cron 트리거]
-  DISP --> DA[Discovery adapters<br/>NAVER_NEWS / NAVER_STOCK / DAUM_NEWS / GOOGLE_NEWS / WEIBO]
+  DISP --> DA[Discovery adapters<br/>NAVER_NEWS / NAVER_STOCK / DAUM_NEWS / GOOGLE_NEWS / BAIDU_NEWS]
   DA -->|INSERT ON CONFLICT DO NOTHING| AU[(article_url<br/>큐 + 상태)]
   AU --> EX[Extraction workers]
   EX --> SINK{{Sink 포트}}
@@ -63,7 +63,7 @@ flowchart LR
 
 ```
 app/
-  adapters/            # SourceAdapter 구현: naver_news.py, naver_stock.py, daum_news.py, google_news.py, weibo.py
+  adapters/            # SourceAdapter 구현: naver_news.py, naver_stock.py, daum_news.py, google_news.py, baidu_news.py
   extraction/          # 추출 체인: library_chain.py, rule_engine.py, extractor.py
   fetch/               # Fetcher: http_client.py, headless.py, proxy.py, rate_limit.py
   sink/                # Sink 포트 + 구현: base.py, file_sink.py, solr_sink.py(나중)
@@ -101,7 +101,7 @@ class Sink(Protocol):
 코드는 한 벌이고, **같은 이미지를 실행 인자(또는 환경변수)만 바꿔** 여러 컨테이너로 띄운다. 인자는 두 축이다.
 
 - `--role` : `discovery` | `extraction` — **진입점 선택**(어느 루프를 돌릴지).
-- `--portal` : `naver_news` | `naver_stock` | `daum_news` | `google_news` | `weibo` | `all` — **점유 쿼리의 `WHERE portal_type` 필터값**. 기본값 `all`.
+- `--portal` : `naver_news` | `naver_stock` | `daum_news` | `google_news` | `baidu_news` | `all` — **점유 쿼리의 `WHERE portal_type` 필터값**. 기본값 `all`.
 
 ```bash
 python -m app --role discovery  --portal naver_news   # 네이버 발견자
@@ -263,13 +263,13 @@ erDiagram
 | 네이버 | 1일·1주 | 가능 | 증분 중단(정렬 신뢰) | static 우선 | 검색 결과가 무한 스크롤 → 9.5 |
 | 다음 | 1일·1주 | 가능 | 증분 중단(정렬 신뢰) | static 우선 | 네이버와 동일 전략 공유 |
 | 구글 | 1일·1주(`tbs=qdr:d` 등) | **없음** | 집합 한정 + 날짜 판정 + 상한 | **headless** | 안티봇 가장 공격적, 보수적 속도 |
-| 웨이보 | 분석 필요 | 분석 필요 | 분석 후 결정 | headless 가능성 높음 | 9.4 |
+| 바이두 | 분석 필요 | 분석 필요 | 분석 후 결정 | headless 가능성 높음 | 9.4 |
 
 기간 필터 파라미터(예: 구글 `tbs=qdr:d`)는 비공식이라 바뀔 수 있으므로 **코드에 하드코딩하지 말고 설정값으로** 둔다. 필터가 깨지거나 무시되어도 폭주하지 않도록, 필터는 최적화 수단으로만 쓰고 페이지/스크롤 상한과 컷오프 판정을 항상 보험으로 깔아둔다.
 
-### 8.4 웨이보 (미확정)
+### 8.4 바이두 뉴스 (미확정)
 
-웨이보는 소셜 포스트 소스라 별도 분석이 필요하다. 확인 항목: ① 기간 필터 지원 여부·단위, ② 최신순 정렬 가능 여부, ③ 검색 대상 범위(공식 계정 글만 vs 전체 포스트), ④ 로그인·해외 접속 차단 대응(발견 단계부터 headless + 세션 유지가 필요할 가능성이 높음). ①·② 결과에 따라 네이버형(증분 중단) 또는 구글형(집합 한정)으로 떨어진다.
+바이두 뉴스는 중국 검색 포털로 별도 분석이 필요하다. 확인 항목: ① 기간 필터 지원 여부·단위, ② 최신순 정렬 가능 여부, ③ 해외 접속 차단 여부 및 프록시 필요성(중국 IP 필요 가능성 높음), ④ headless 필요 여부. ①·② 결과에 따라 네이버형(증분 중단) 또는 구글형(집합 한정)으로 떨어진다.
 
 ### 8.5 무한 스크롤 처리 (네이버 등)
 
@@ -374,7 +374,7 @@ stateDiagram-v2
 
 기본은 정적 HTTP(빠르고 가벼움), 막히는 소스만 헤드리스(Playwright, 무겁지만 강함). 소스별 기본값은 `domain.render_mode`로 제어.
 - 네이버·다음: 정적 우선.
-- **웨이보·구글: 헤드리스 가능성 높음.** 특히 **구글이 넷 중 안티봇이 가장 공격적**이다(캡차·차단이 빠름). 구글 도메인은 `render_mode=headless` + 긴 `crawl_delay_ms` + 보수적 속도로 시작할 것.
+- **바이두·구글: 헤드리스 가능성 높음.** 특히 **구글이 넷 중 안티봇이 가장 공격적**이다(캡차·차단이 빠름). 구글 도메인은 `render_mode=headless` + 긴 `crawl_delay_ms` + 보수적 속도로 시작할 것. 바이두는 중국 외 IP 차단 가능성이 있으므로 중국 프록시 필요 여부를 먼저 확인한다.
 
 ### 11.4 드리프트 감지 루프
 
@@ -447,7 +447,7 @@ Traceback (most recent call last):
 - **본문 추출 라이브러리 체인**: 1차 `trafilatura`, 2차 보조(`readability-lxml`/`newspaper` 등 중 택1).
 - **규칙 기반 파싱**: `lxml`/`selectolax`/`BeautifulSoup`.
 - **RDB**: **MySQL 8.0 이상**(확정). `FOR UPDATE ... SKIP LOCKED`는 MySQL 8.0+에서만 지원되므로 이 버전이 전제다. 접근은 `SQLAlchemy`.
-  - **문자셋**: 테이블·컬럼·커넥션을 모두 `utf8mb4`로 통일한다. 웨이보 중문과 한국어를 함께 다루므로, 이게 누락되면 저장 단계에서 문자가 깨진다.
+  - **문자셋**: 테이블·컬럼·커넥션을 모두 `utf8mb4`로 통일한다. 바이두 중문과 한국어를 함께 다루므로, 이게 누락되면 저장 단계에서 문자가 깨진다.
   - **중복 삽입 구문**: PostgreSQL의 `ON CONFLICT DO NOTHING`에 해당하는 MySQL 구문은 `INSERT ... ON DUPLICATE KEY UPDATE`(또는 `INSERT IGNORE`)다. `url_hash` UNIQUE 키 기준으로 중복을 흡수한다.
 - **Sink(나중)**: `pysolr` 등.
 - **설정**: 환경변수·설정파일(DB 아님).
@@ -457,7 +457,7 @@ Traceback (most recent call last):
 - **프록시/IP 공급자 미정.** Fetcher의 프록시 인터페이스로 추상화해두고, 단일 IP 구현으로 시작 가능. 결정 시 구현만 추가.
 - **규칙 롤백 이력 테이블** 추가 여부(5.1).
 - **URL 수집 전략(발견)은 유동적.** 기간 필터 단위·정렬·중단 조건 등은 고객 요청에 따라 바뀔 수 있다(8절). 발견 어댑터와 설정값으로 격리되어 있어, 전략이 바뀌어도 추출·저장·실패 처리 등 나머지 구조는 영향받지 않는다. 전략 미확정 상태에서도 개발을 시작할 수 있다.
-- **웨이보 발견 전략 미확정** — 기간 필터/정렬 지원 여부, 검색 대상 범위(공식 계정 글 vs 전체 포스트), 로그인·해외 접속 차단 대응 분석 필요(8.4).
+- **바이두 발견 전략 미확정** — 기간 필터/정렬 지원 여부, 해외 접속 차단 및 중국 프록시 필요 여부 분석 필요(8.4).
 
 ---
 
@@ -508,18 +508,18 @@ Traceback (most recent call last):
 **5. 추출 워커 루프.** 1~4를 조립 — 점유 → Fetcher → 추출 → 성공이면 Sink, 실패면 분류·백오프. **조립일 뿐 새 로직은 거의 없어야 한다**(새 로직이 많이 필요하면 앞 단계 경계가 잘못된 것).
 → 검증: 큐에 URL 몇 개 넣고 워커를 돌리면 파일에 콘텐츠가 쌓이고, 실패한 건 상태가 바뀌는가.
 
-**6. 발견(한 소스부터).** 네이버 하나만 — 검색 → URL 목록 → 큐 적재. 디스패처 + cron 트리거 + 실행 겹침 잠금. 한 소스로 끝까지 동작시킨 뒤 다음·구글·웨이보를 같은 인터페이스로 추가.
+**6. 발견(한 소스부터).** 네이버 하나만 — 검색 → URL 목록 → 큐 적재. 디스패처 + cron 트리거 + 실행 겹침 잠금. 한 소스로 끝까지 동작시킨 뒤 다음·구글·바이두를 같은 인터페이스로 추가.
 → 검증: 키워드 하나로 발견 → 큐에 URL이 쌓이고 5단계 워커가 처리(발견+추출이 처음 이어지는 순간).
 
-**7. 나머지 소스 어댑터.** 다음 → 구글 → 웨이보(전략 확정 후). 8절 소스별 발견 전략 적용.
+**7. 나머지 소스 어댑터.** 다음 → 구글 → 바이두(전략 확정 후). 8절 소스별 발견 전략 적용.
 - 구글: `google.com/search?tbm=nws` 를 undetected-chromedriver 로 스크랩. RSS는 CBMi 리다이렉트 문제로 미사용 (`decisions/google-discovery.md` 참고).
-- 웨이보: 미구현 (전략 미확정).
+- 바이두: 미구현 (전략 미확정 — 해외 접속 차단 및 중국 프록시 필요 여부 선행 분석 필요).
 
 **8. 규칙 엔진 + 핫리로드.** `rules_json` 해석기 + TTL 캐시 + 규칙 우선 체인.
 
 **9. 운영 장치.** reaper, 도메인 차단기, dead-letter.
 
-**10. 헤드리스 폴백.** Playwright 통합(구글·웨이보). 컨테이너 이미지에 브라우저 바이너리·한글/중문 폰트 포함 주의.
+**10. 헤드리스 폴백.** Playwright 통합(구글·바이두). 컨테이너 이미지에 브라우저 바이너리·한글/중문 폰트 포함 주의.
 
 **11. 관리 UI/API.** 규칙 편집·테스트(URL 대입 미리보기)·enable/version/rollback, 실패 재투입, run-now(`next_discover_at=now`), 드리프트 모니터링.
 
