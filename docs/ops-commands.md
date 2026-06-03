@@ -467,4 +467,4 @@ logs/
   error.log  — WARNING 이상 (실패·예외·경보)
 ```
 
-로그 필드: `ts level [component] worker=X phase=Y item=Z host=W message`
+로그 필드: `ts level [component] worker=X phase=Y keyword_id=Z url_id=Z host=W message`

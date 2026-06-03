@@ -6,7 +6,7 @@
   error.log — WARNING 이상만. "왜 멈췄나"를 한 곳에서 본다.
 
 에러 엔트리 포맷:
-  {ts} {level} {component} worker={id} phase={phase} item={id} host={host} code={code} {class}: {msg}
+  {ts} {level} {component} worker={id} phase={phase} keyword_id={id} url_id={id} host={host} code={code} {msg}
 """
 
 from __future__ import annotations
@@ -49,11 +49,12 @@ class _ContextFilter(logging.Filter):
     """필드가 없을 때 기본값을 채워준다."""
 
     _DEFAULTS = {
-        "worker_id": "-",
-        "component": "app",
-        "phase": "-",
-        "item": "-",
-        "host": "-",
+        "worker_id":  "-",
+        "component":  "app",
+        "phase":      "-",
+        "keyword_id": "-",
+        "url_id":     "-",
+        "host":       "-",
         "error_code": "-",
     }
 
@@ -66,13 +67,13 @@ class _ContextFilter(logging.Filter):
 
 _APP_FMT = (
     "%(asctime)s %(levelname)-5s [%(component)s] "
-    "worker=%(worker_id)s phase=%(phase)s item=%(item)s host=%(host)s "
+    "worker=%(worker_id)s phase=%(phase)s keyword_id=%(keyword_id)s url_id=%(url_id)s host=%(host)s "
     "%(message)s"
 )
 
 _ERROR_FMT = (
     "%(asctime)s %(levelname)-5s [%(component)s] "
-    "worker=%(worker_id)s phase=%(phase)s item=%(item)s host=%(host)s "
+    "worker=%(worker_id)s phase=%(phase)s keyword_id=%(keyword_id)s url_id=%(url_id)s host=%(host)s "
     "code=%(error_code)s %(message)s"
 )
 

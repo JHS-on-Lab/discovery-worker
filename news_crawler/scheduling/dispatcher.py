@@ -23,9 +23,6 @@ import time
 import logging
 from datetime import datetime, timezone, timedelta
 
-_MAX_403_RETRIES = 5
-_RETRY_DELAY_SEC = 1800   # 30분
-
 from news_crawler import config
 from news_crawler.worker import _healthcheck
 from news_crawler.adapters import make_adapter
@@ -37,8 +34,11 @@ from news_crawler.repository.collection_log_repo import CollectionLogRepo, Disco
 logger = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
+
+_MAX_403_RETRIES = 5
 _IDLE_SLEEP_SEC  = 60
-_ERROR_SLEEP_SEC = 10
+_403_SLEEP_SEC   = 60   # 403 후 다음 키워드 요청 전 IP 레벨 냉각
+_ERROR_SLEEP_SEC = 10   # 그 외 예외 후 빠른 루프 방지
 
 
 def run_discovery_loop(portal: str, worker_id: str) -> None:
@@ -91,26 +91,8 @@ def run_discovery_loop(portal: str, worker_id: str) -> None:
                     time.sleep(_IDLE_SLEEP_SEC)
                     continue
 
-                error = _run_one(kw, kw_repo, url_repo, log_repo, worker_id, adapter)
+                _run_one(kw, kw_repo, url_repo, log_repo, worker_id, adapter)
                 processed += 1
-
-                if error and "403" in error:
-                    kid   = kw["id"]
-                    count = log_repo.count_today_403(kid)
-                    if count < _MAX_403_RETRIES:
-                        retry_at = datetime.now(timezone.utc) + timedelta(seconds=_RETRY_DELAY_SEC)
-                        kw_repo.reschedule(kid, retry_at)
-                        logger.warning(
-                            f"403 keyword='{kw['keyword']}' attempt={count}/{_MAX_403_RETRIES}"
-                            f" — retry at {retry_at.strftime('%H:%M UTC')}",
-                            extra={"phase": "retry", "worker_id": worker_id, "component": "dispatcher"},
-                        )
-                    else:
-                        logger.warning(
-                            f"403 keyword='{kw['keyword']}' gave up after {_MAX_403_RETRIES} attempts"
-                            f" — next try in 24h",
-                            extra={"phase": "retry", "worker_id": worker_id, "component": "dispatcher"},
-                        )
         finally:
             if adapter and hasattr(adapter, "close"):
                 adapter.close()
@@ -123,13 +105,12 @@ def _run_one(
     log_repo: CollectionLogRepo,
     worker_id: str,
     adapter=None,
-) -> str | None:
-    """키워드 하나를 발견한다. 성공 시 None, 실패 시 error_msg 반환."""
+) -> None:
     keyword    = kw["keyword"]
     portal     = kw["portal_type"]
     keyword_id = kw["id"]
 
-    extra = {"phase": "discover", "worker_id": worker_id, "item": str(keyword_id), "component": "dispatcher"}
+    extra = {"phase": "discover", "worker_id": worker_id, "keyword_id": str(keyword_id), "component": "dispatcher"}
     logger.info(f"start keyword='{keyword}' portal={portal}", extra=extra)
 
     started_at   = datetime.now(KST)
@@ -187,16 +168,29 @@ def _run_one(
             extra={**extra, "phase": "discover_done"},
         )
 
-        return None
-
     except Exception as exc:
         duration_ms = int((time.monotonic() - started_mono) * 1000)
         error_msg = f"{type(exc).__name__}: {exc}"
 
-        logger.exception(
-            f"error keyword='{keyword}' portal={portal}",
-            extra={**extra, "phase": "discover_error"},
-        )
+        if "403" in error_msg:
+            count    = log_repo.count_today_403(keyword_id)
+            retry_at = datetime.now(timezone.utc) + timedelta(seconds=config.DISCOVERY_403_RESCHEDULE_SEC)
+            if count < _MAX_403_RETRIES:
+                kw_repo.reschedule(keyword_id, retry_at)
+                logger.warning(
+                    f"403 '{keyword}' cursor={cursor} {count+1}/{_MAX_403_RETRIES} retry={retry_at.astimezone(KST).strftime('%H:%M')}KST",
+                    extra={**extra, "phase": "discover_error"},
+                )
+            else:
+                logger.warning(
+                    f"403 '{keyword}' cursor={cursor} gave_up={_MAX_403_RETRIES} next=24h",
+                    extra={**extra, "phase": "discover_error"},
+                )
+        else:
+            logger.exception(
+                f"error keyword='{keyword}' portal={portal}",
+                extra={**extra, "phase": "discover_error"},
+            )
 
         # 실패한 cursor 저장 → 재시도 시 이 페이지부터 재개
         try:
@@ -222,5 +216,4 @@ def _run_one(
                 extra={**extra, "phase": "discover_error"},
             )
 
-        time.sleep(_ERROR_SLEEP_SEC)
-        return error_msg
+        time.sleep(_403_SLEEP_SEC if "403" in error_msg else _ERROR_SLEEP_SEC)

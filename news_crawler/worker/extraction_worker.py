@@ -138,7 +138,7 @@ def _process_one(
 
     extra = {
         "phase": "extract", "worker_id": worker_id,
-        "host": host, "item": str(item_id), "component": "extractor",
+        "host": host, "url_id": str(item_id), "component": "extractor",
     }
 
     # 해당 도메인이 차단 상태(cooldown)인지 확인한다.

@@ -400,13 +400,13 @@ stateDiagram-v2
 한 줄에 진단에 필요한 컨텍스트를 다 담아, 다른 로그와 교차 참조 없이 원인을 알 수 있게 한다.
 
 ```
-{ts} {level} {component} worker={worker_id} phase={phase} item={keyword_id|url_hash} host={host} code={error_code} {error_class}: {message}
+{ts} {level} {component} worker={worker_id} phase={phase} keyword_id={id} url_id={id} host={host} code={error_code} {message}
 <여러 줄 traceback 블록>
 ```
 
 예:
 ```
-2026-05-30T09:14:02Z ERROR extraction worker=ex-3 phase=fetch item=ab12cd34 host=news.example.com code=TIMEOUT httpx.ReadTimeout: read timed out
+2026-05-30T09:14:02Z ERROR extraction worker=ex-3 phase=fetch keyword_id=- url_id=42 host=news.example.com code=TIMEOUT httpx.ReadTimeout: read timed out
 Traceback (most recent call last):
   ...
 ```
