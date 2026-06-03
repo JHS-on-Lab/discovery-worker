@@ -31,12 +31,21 @@ EXPECTED_COLUMNS = {
         "cooldown_until", "recent_fail_count", "success_rate", "avg_body_len",
         "updated_at", "updated_by",
     },
+    "collection_log": {
+        "id", "run_type", "run_date", "keyword_id", "portal_type", "worker_id",
+        "started_at", "duration_ms",
+        "urls_found", "urls_inserted", "urls_skipped",
+        "urls_attempted", "urls_success", "urls_failed",
+        "error_msg", "created_at",
+    },
 }
 
 EXPECTED_INDEXES = {
-    "article_url": {"uq_article_url_hash", "ix_article_url_claim",
-                    "ix_article_url_host", "ix_article_url_keyword"},
-    "keyword":     {"uq_keyword_portal"},
+    "article_url":    {"uq_article_url_hash", "ix_article_url_claim",
+                       "ix_article_url_host", "ix_article_url_keyword",
+                       "ix_article_url_status", "ix_article_url_collected_date"},
+    "keyword":        {"uq_keyword_portal", "ix_keyword_next_discover_at"},
+    "collection_log": {"ix_collection_log_date_type", "ix_collection_log_keyword_date"},
 }
 
 
@@ -57,12 +66,17 @@ def main():
 
         print()
         for table, expected_cols in EXPECTED_COLUMNS.items():
+            print(f"=== {table} ===")
+            if table not in tables:
+                print(f"  [SKIP] 테이블 없음 — 컬럼·인덱스 검사 생략")
+                ok = False
+                continue
+
             actual_cols = {c["name"] for c in insp.get_columns(table)}
             actual_idxs = {i["name"] for i in insp.get_indexes(table)}
             missing_cols = expected_cols - actual_cols
             extra_cols   = actual_cols - expected_cols
 
-            print(f"=== {table} ===")
             if missing_cols:
                 print(f"  [MISSING cols] {sorted(missing_cols)}")
                 ok = False
@@ -81,9 +95,13 @@ def main():
                 print(f"  [OK] 인덱스 {len(actual_idxs)}개")
 
         print()
-        with engine.begin() as conn:
-            conn.execute(text("SELECT id FROM keyword LIMIT 1 FOR UPDATE SKIP LOCKED"))
-            print("SKIP LOCKED 지원: OK")
+        if "keyword" in tables:
+            with engine.begin() as conn:
+                conn.execute(text("SELECT id FROM keyword LIMIT 1 FOR UPDATE SKIP LOCKED"))
+                print("SKIP LOCKED 지원: OK")
+        else:
+            print("SKIP LOCKED 지원: SKIP (keyword 테이블 없음)")
+            ok = False
 
     print()
     print("스키마 검증 완료." if ok else "스키마 검증 실패 — 위 MISSING 항목을 확인하세요.")
