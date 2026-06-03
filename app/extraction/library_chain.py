@@ -1,0 +1,111 @@
+﻿"""
+라이브러리를 이용한 본문 추출.
+
+trafilatura 를 먼저 시도하고, 결과가 없으면 readability 로 재시도한다.
+둘 다 실패하거나 본문이 너무 짧으면(200자 미만) ExtractionFailure 를 반환한다.
+
+trafilatura 가 1순위인 이유:
+  뉴스 기사 본문 추출에 특화돼 있어 광고·메뉴 등 노이즈를 잘 걸러낸다.
+  단, 결과가 없는 경우가 있어 범용 라이브러리인 readability 를 대비책으로 둔다.
+
+JS 렌더링이 필요한 페이지(SPA, 페이월 등)는 정적 HTML 만으로는 추출이 불가능하다.
+이런 경우 PARSE_ERROR 또는 BODY_TOO_SHORT 로 실패하며, headless 렌더링이 필요하다.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from app.domain_logic.url_normalizer import normalize, url_hash
+from app.types import Article, ErrorCode, ExtractionFailure
+
+_MIN_BODY_LEN = 200
+
+
+class LibraryChain:
+    def extract(
+        self,
+        url: str,
+        html: str,
+        host: str,
+        portal_type: str = "",
+        keyword: str = "",
+    ) -> Article | ExtractionFailure:
+        """HTML → Article. 실패 시 ExtractionFailure."""
+        result = _try_trafilatura(html)
+        if result is None:
+            result = _try_readability(html)
+
+        if result is None:
+            return ExtractionFailure(
+                url=url,
+                error_code=ErrorCode.PARSE_ERROR,
+                error_msg="trafilatura and readability both returned nothing",
+                is_permanent=False,
+            )
+
+        title, body, method = result
+
+        if not title:
+            return ExtractionFailure(
+                url=url,
+                error_code=ErrorCode.TITLE_EMPTY,
+                error_msg="title is empty after extraction",
+                is_permanent=True,
+            )
+
+        if len(body) < _MIN_BODY_LEN:
+            return ExtractionFailure(
+                url=url,
+                error_code=ErrorCode.BODY_TOO_SHORT,
+                error_msg=f"body_len={len(body)} < {_MIN_BODY_LEN}",
+                is_permanent=False,
+            )
+
+        norm = normalize(url)
+        return Article(
+            url=norm,
+            url_hash=url_hash(norm),
+            portal_type=portal_type,
+            keyword=keyword,
+            title=title.strip(),
+            body=body.strip(),
+            published_at=None,
+            author=None,
+            press=None,
+            collected_at=datetime.now(timezone.utc),
+            extraction_method=method,
+        )
+
+
+def _try_trafilatura(html: str) -> tuple[str, str, str] | None:
+    try:
+        import trafilatura
+        body = trafilatura.extract(
+            html,
+            include_comments=False,
+            include_tables=False,
+            no_fallback=True,
+            output_format="txt",
+        )
+        if not body:
+            return None
+        meta = trafilatura.extract_metadata(html)
+        title = (meta.title or "") if meta else ""
+        return title, body, "trafilatura"
+    except Exception:
+        return None
+
+
+def _try_readability(html: str) -> tuple[str, str, str] | None:
+    try:
+        from readability import Document
+        from selectolax.parser import HTMLParser
+        doc = Document(html)
+        title = doc.title() or ""
+        body = HTMLParser(doc.summary()).text(separator="\n").strip()
+        if not body:
+            return None
+        return title, body, "readability"
+    except Exception:
+        return None

@@ -1,4 +1,4 @@
-"""
+﻿"""
 도메인 정책 설정 — crawl_delay_ms / render_mode / rules_json / cooldown 관리.
 
 실행:
@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
-from news_crawler.repository.db import db_context
+from app.repository.db import db_context
 
 
 def main() -> None:

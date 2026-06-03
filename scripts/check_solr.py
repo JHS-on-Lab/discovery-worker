@@ -1,4 +1,4 @@
-"""
+﻿"""
 Solr 연결·코어 상태 확인 스크립트.
 
 실행:
@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import httpx
-from news_crawler import config
+from app import config
 
 
 def main() -> None:

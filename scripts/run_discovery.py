@@ -1,9 +1,9 @@
-"""
+﻿"""
 단일 키워드 수동 발견 → article_url + collection_log 저장.
 dispatcher 없이 특정 키워드만 즉시 수집할 때 사용.
 
 실행:
-  python scripts/run_discovery.py --keyword "삼성전자" --portal NAVER
+  python scripts/run_discovery.py --keyword "삼성전자" --portal NAVER_NEWS
   python scripts/run_discovery.py --keyword "삼성전자" --portal DAUM   --pages 5
   python scripts/run_discovery.py --keyword "삼성전자" --portal GOOGLE  --pages 3
   python scripts/run_discovery.py --keyword "005930"   --portal NAVER_STOCK --pages 5
@@ -15,41 +15,41 @@ from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from news_crawler import logging_setup
+from app import logging_setup
 logging_setup.setup("run_discovery")  # app.log + error.log + 콘솔
 
-from news_crawler.adapters import make_adapter
-from news_crawler.repository.db import db_context
-from news_crawler.repository.keyword_repo import KeywordRepo
-from news_crawler.repository.article_url_repo import ArticleUrlRepo
-from news_crawler.repository.collection_log_repo import CollectionLogRepo, DiscoveryLog
+from app.adapters import make_adapter
+from app.repository.db import db_context
+from app.repository.keyword_repo import KeywordRepo
+from app.repository.article_url_repo import ArticleUrlRepo
+from app.repository.collection_log_repo import CollectionLogRepo, DiscoveryLog
 
 KST = timezone(timedelta(hours=9))
 
 p = argparse.ArgumentParser()
 p.add_argument("--keyword", required=True)
-p.add_argument("--portal",  required=True, choices=["NAVER", "DAUM", "GOOGLE", "WEIBO", "NAVER_STOCK"])
-p.add_argument("--pages",   type=int, default=3, help="최대 페이지 수 (NAVER/DAUM)")
-p.add_argument("--period",  default="",   help="기간 (NAVER: 4=1일 / DAUM: d=1일)")
+p.add_argument("--portal",  required=True, choices=["NAVER_NEWS", "DAUM_NEWS", "GOOGLE_NEWS", "WEIBO", "NAVER_STOCK"])
+p.add_argument("--pages",   type=int, default=3, help="최대 페이지 수 (NAVER_NEWS/DAUM)")
+p.add_argument("--period",  default="",   help="기간 (NAVER_NEWS: 4=1일 / DAUM: d=1일)")
 p.add_argument("--worker-id", default="manual")
 args = p.parse_args()
 
 # 포털별 기본 기간 설정
 if not args.period:
-    args.period = {"NAVER": "4", "DAUM": "d"}.get(args.portal, "")
+    args.period = {"NAVER_NEWS": "4", "DAUM_NEWS": "d"}.get(args.portal, "")
 
 # 어댑터 생성 (portal + period 반영)
-if args.portal == "NAVER":
-    from news_crawler.adapters.naver import NaverAdapter
-    adapter = NaverAdapter(period=args.period, max_pages=args.pages)
-elif args.portal == "DAUM":
-    from news_crawler.adapters.daum import DaumAdapter
+if args.portal == "NAVER_NEWS":
+    from app.adapters.naver_news import NaverNewsAdapter
+    adapter = NaverNewsAdapter(period=args.period, max_pages=args.pages)
+elif args.portal == "DAUM_NEWS":
+    from app.adapters.daum_news import DaumAdapter
     adapter = DaumAdapter(period=args.period, max_pages=args.pages)
-elif args.portal == "GOOGLE":
-    from news_crawler.adapters.google import UCGoogleAdapter
+elif args.portal == "GOOGLE_NEWS":
+    from app.adapters.google_news import UCGoogleAdapter
     adapter = UCGoogleAdapter(max_pages=args.pages)
 elif args.portal == "NAVER_STOCK":
-    from news_crawler.adapters.naver_stock import NaverStockAdapter
+    from app.adapters.naver_stock import NaverStockAdapter
     adapter = NaverStockAdapter(max_pages=args.pages)
 else:
     adapter = make_adapter(args.portal)

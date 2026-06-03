@@ -1,4 +1,4 @@
-"""
+﻿"""
 스키마 검증: 테이블·컬럼·인덱스·제약 확인.
 실행: python scripts/verify_schema.py
 """
@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text, inspect
-from news_crawler.repository.db import db_context
+from app.repository.db import db_context
 
 EXPECTED_TABLES = {"keyword", "article_url", "domain", "collection_log", "alembic_version"}
 

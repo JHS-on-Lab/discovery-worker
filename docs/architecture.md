@@ -1,8 +1,8 @@
-# 아키텍처 개요
+﻿# 아키텍처 개요
 
 ## 한 문장 요약
 
-키워드를 DB에 등록하면, 발견 워커가 포털에서 URL을 수집하고, 추출 워커가 각 URL의 본문을 스크랩해 파일(또는 Solr)로 저장하는 2단계 파이프라인.
+키워드를 DB에 등록하면, 발견 워커가 포털·소스에서 콘텐츠 URL을 수집하고, 추출 워커가 각 URL의 본문을 스크랩해 파일(또는 Solr)로 저장하는 2단계 파이프라인.
 
 ---
 
@@ -18,8 +18,8 @@
 │  테이블  │─────▶│   Worker     │─────▶│    테이블      │
 │          │      │ (dispatcher) │      │ status=        │
 │ 검색어 + │      │              │      │ discovered     │
-│ 스케줄   │      │ 네이버/다음/ │      └───────┬────────┘
-└──────────┘      │ 구글 스크랩  │              │
+│ 스케줄   │      │ 포털·소스   │      └───────┬────────┘
+└──────────┘      │ 스크래핑    │              │
                   └──────────────┘              │
                                                 │ claim_next()
                                                 ▼
@@ -52,7 +52,7 @@
 ```
 id │ keyword  │ portal_type │ interval_seconds │ next_discover_at
 ───┼──────────┼─────────────┼──────────────────┼──────────────────
- 1 │ 삼성전자 │ NAVER       │ 86400 (1일)      │ 2026-06-01 09:00
+ 1 │ 삼성전자 │ naver_news       │ 86400 (1일)      │ 2026-06-01 09:00
  2 │ 삼성전자 │ DAUM        │ 86400            │ 2026-06-01 09:10
 ```
 
@@ -92,14 +92,14 @@ WHERE keyword_id = :kid AND run_type = 'discovery' AND error_msg IS NULL;
 ## 컴포넌트 맵
 
 ```
-news_crawler/
+app/
 │
-├── adapters/          ← 포털별 URL 수집 (HTTP 스크랩)
-│   ├── naver.py         (sds-comps-base-layout 셀렉터)
-│   ├── daum.py          (v.daum.net/v/ URL 패턴)
-│   ├── google.py        (undetected-chromedriver, search/rss 모드)
+├── adapters/          ← 소스별 콘텐츠 URL 수집 (HTTP 스크랩)
+│   ├── naver_news.py         (sds-comps-base-layout 셀렉터)
+│   ├── daum_news.py     (v.daum.net/v/ URL 패턴)
+│   ├── google_news.py   (undetected-chromedriver, search/rss 모드)
 │   ├── naver_stock.py   (네이버 증권 종목토론, 종목코드 키워드)
-│   └── weibo.py         (전략 미확정 — 미구현)
+│   └── weibo_news.py    (전략 미확정 — 미구현)
 │
 ├── scheduling/        ← 발견 워커 루프
 │   └── dispatcher.py
@@ -108,7 +108,7 @@ news_crawler/
 │   ├── http_client.py   (정적 HTTP, 리다이렉트 자동 추적)
 │   └── headless.py      (Playwright Chromium, JS 렌더링 필요 시)
 │
-├── extraction/        ← HTML → 제목·본문
+├── extraction/        ← HTML → 제목·본문 (콘텐츠 타입 무관)
 │   ├── extractor.py     (진입점: 규칙 우선, 폴백 LibraryChain)
 │   ├── rule_engine.py   (도메인별 CSS/XPath 규칙, TTL 캐시 60s)
 │   └── library_chain.py (trafilatura → readability 폴백)
@@ -141,7 +141,7 @@ news_crawler/
 같은 역할의 워커를 여러 개 동시에 띄워도 같은 작업을 중복 처리하지 않는다.
 
 **발견 워커**: `keyword` 테이블에서 `FOR UPDATE SKIP LOCKED` 로 키워드를 가져간다.  
-→ 워커 A가 "삼성전자/NAVER" 를 처리 중이면, 워커 B는 다른 키워드를 가져간다.
+→ 워커 A가 "삼성전자/naver_news" 를 처리 중이면, 워커 B는 다른 키워드를 가져간다.
 
 **추출 워커**: `article_url` 테이블에서 동일한 방식으로 URL을 하나씩 점유한다.  
 → 여러 워커가 동시에 돌아도 같은 URL을 중복 처리하지 않는다.
@@ -152,14 +152,14 @@ news_crawler/
 
 | 기능 | 상태 |
 |------|------|
-| discovery (naver / daum / google) | 완료 |
+| discovery (naver_news / daum / google) | 완료 |
 | discovery (naver_stock — 네이버 증권 종목토론) | 완료 — 종목코드를 keyword 로 등록 |
 | extraction (FileSink / SolrSink) | 완료 |
 | headless 렌더링 (Playwright) | 완료 — `domain.render_mode=headless` 설정 필요 |
 | 도메인 규칙 엔진 (CSS/XPath, TTL 캐시) | 완료 |
 | Reaper (좀비 extracting 자동 회수) | 완료 — extraction 워커 시작 시 daemon 스레드 자동 시작 |
 | Docker healthcheck | 완료 — heartbeat마다 `/tmp/healthcheck` 갱신 |
-| Weibo discovery | **미구현** — 전략 결정 후 `adapters/weibo.py` 구현 |
+| Weibo discovery | **미구현** — 전략 결정 후 `adapters/weibo_news.py` 구현 |
 
 ---
 
@@ -186,12 +186,12 @@ news_crawler/
 
 ### 어댑터별 fetch 전략 한눈에 보기
 
-어댑터는 두 단계에서 HTTP를 사용한다. **Discovery**(URL 목록 수집)와 **Extraction**(기사 본문 렌더링)이 독립적이며 각각 다른 전략을 쓴다.
+어댑터는 두 단계에서 HTTP를 사용한다. **Discovery**(URL 목록 수집)와 **Extraction**(콘텐츠 본문 렌더링)이 독립적이며 각각 다른 전략을 쓴다.
 
 ```
 포털          Discovery fetch          Extraction fetch
 ─────────     ──────────────────────   ──────────────────────────────────────
-NAVER         httpx (정적 HTTP)        httpx (정적, domain 기본값)
+naver_news         httpx (정적 HTTP)        httpx (정적, domain 기본값)
 DAUM          httpx (정적 HTTP)        httpx (정적, domain 기본값)
 GOOGLE        undetected-chromedriver  httpx (정적, 언론사마다 다를 수 있음)
 NAVER_STOCK   httpx (정적 HTTP)        Playwright headless_with_iframe
@@ -218,7 +218,7 @@ SELECT host, render_mode, rules_enabled FROM domain ORDER BY host;
 
 | 포털 | 방식 | 라이브러리 | 엔드포인트 |
 |------|------|-----------|-----------|
-| NAVER | 정적 HTTP | **httpx** | `search.naver.com/search.naver?start=N` |
+| naver_news | 정적 HTTP | **httpx** | `search.naver.com/search.naver?start=N` |
 | DAUM | 정적 HTTP | **httpx** | `search.daum.net/search?w=news&p=N` |
 | GOOGLE | 실제 브라우저 | **undetected-chromedriver** + Selenium | `google.com/search?tbm=nws` (search 모드) |
 | NAVER_STOCK | 정적 HTTP | **httpx** | `finance.naver.com/item/board.naver?code={code}&page=N` |
@@ -299,7 +299,7 @@ Google 검색은 headless 브라우저를 즉시 차단하므로 `undetected-chr
 | 운영 명령어 / SQL | [ops-commands.md](ops-commands.md) |
 | 도메인 규칙 설정 | [domain-rules-guide.md](domain-rules-guide.md) |
 | 컨테이너 배포 | [deployment.md](deployment.md) |
-| 전체 설계 명세 | [news-crawler-design.md](news-crawler-design.md) |
+| 전체 설계 명세 | [keyword-collector-design.md](keyword-collector-design.md) |
 | 네이버·다음 발견 전략 (403 재시도 포함) | [decisions/naver-discovery-strategy.md](decisions/naver-discovery-strategy.md) |
 | 네이버 증권 종목토론 발견 | [decisions/naver-stock-discovery.md](decisions/naver-stock-discovery.md) |
 | Google 발견 전략 | [decisions/google-discovery.md](decisions/google-discovery.md) |

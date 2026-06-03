@@ -1,4 +1,4 @@
-"""
+﻿"""
 실패 URL 재투입 — failed_permanent / dead / failed_transient → discovered.
 
 실행:
@@ -22,8 +22,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
-from news_crawler.repository.db import db_context
-from news_crawler.repository.article_url_repo import ArticleUrlRepo
+from app.repository.db import db_context
+from app.repository.article_url_repo import ArticleUrlRepo
 
 _REQUEUE_STATUSES = ["failed_permanent", "dead", "failed_transient"]
 

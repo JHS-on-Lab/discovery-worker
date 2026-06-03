@@ -1,4 +1,4 @@
-# 컨테이너 배포 설계
+﻿# 컨테이너 배포 설계
 
 > 단일 VM 위에 역할별 컨테이너를 Docker Compose 로 운영하는 방안을 정의한다.
 
@@ -19,7 +19,7 @@
 │                         단일 VM                                  │
 │                                                                 │
 │  ┌──────────────────┐  ┌────────────────┐  ┌──────────────────┐ │
-│  │  discovery-naver │  │ discovery-daum │  │ discovery-google │ │
+│  │  discovery-naver_news │  │ discovery-daum │  │ discovery-google │ │
 │  └──────────────────┘  └────────────────┘  └──────────────────┘ │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────┐       │
@@ -91,9 +91,9 @@ GROUP BY status;
 
 services:
 
-  discovery-naver:
+  discovery-naver_news:
     build: .
-    command: python -m news_crawler --role discovery --portal naver --worker-id naver-1
+    command: python -m app --role discovery --portal naver_news --worker-id naver_news-1
     env_file: .env
     volumes:
       - ./logs:/app/logs
@@ -101,7 +101,7 @@ services:
 
   discovery-daum:
     build: .
-    command: python -m news_crawler --role discovery --portal daum --worker-id daum-1
+    command: python -m app --role discovery --portal daum_news --worker-id daum_news-1
     env_file: .env
     volumes:
       - ./logs:/app/logs
@@ -113,7 +113,7 @@ services:
       dockerfile: Dockerfile.google
     command: >
       xvfb-run --server-args="-screen 0 1920x1080x24"
-      python -m news_crawler --role discovery --portal google --worker-id google-1
+      python -m app --role discovery --portal google_news --worker-id google-1
     env_file: .env
     volumes:
       - ./logs:/app/logs
@@ -124,7 +124,7 @@ services:
     build: .
     # worker-id 를 hostname 으로 사용 → 컨테이너마다 자동으로 달라짐
     command: >
-      sh -c "python -m news_crawler --role extraction --worker-id extractor-$$HOSTNAME"
+      sh -c "python -m app --role extraction --worker-id extractor-$$HOSTNAME"
     env_file: .env
     volumes:
       - ./data:/app/data
@@ -149,7 +149,7 @@ docker compose up -d --scale extractor=1
 ```yaml
   extractor-1:
     build: .
-    command: python -m news_crawler --role extraction --worker-id extractor-1
+    command: python -m app --role extraction --worker-id extractor-1
     env_file: .env
     volumes:
       - ./data:/app/data
@@ -158,7 +158,7 @@ docker compose up -d --scale extractor=1
 
   extractor-2:
     build: .
-    command: python -m news_crawler --role extraction --worker-id extractor-2
+    command: python -m app --role extraction --worker-id extractor-2
     env_file: .env
     volumes:
       - ./data:/app/data
@@ -172,7 +172,7 @@ docker compose up -d --scale extractor=1
 
 ## Dockerfile 설계
 
-### 기본 이미지 (Naver / Daum / Extractor 공통)
+### 기본 이미지 (naver_news / Daum / Extractor 공통)
 
 ```dockerfile
 FROM python:3.11-slim
@@ -182,7 +182,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY news_crawler/ ./news_crawler/
+COPY app/ ./app/
 COPY migrations/ ./migrations/
 COPY alembic.ini .
 
@@ -191,7 +191,7 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
     "import time, pathlib; t=float(pathlib.Path('/tmp/healthcheck').read_text()); exit(0 if time.time()-t < 120 else 1)" \
   || exit 1
 
-CMD ["python", "-m", "news_crawler", "--role", "discovery", "--portal", "all"]
+CMD ["python", "-m", "app", "--role", "discovery", "--portal", "all"]
 ```
 
 ### Google Discovery 이미지 (Chrome + Xvfb 필요)
@@ -220,7 +220,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY news_crawler/ ./news_crawler/
+COPY app/ ./app/
 COPY migrations/ ./migrations/
 COPY alembic.ini .
 
@@ -230,7 +230,7 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
   || exit 1
 
 CMD ["xvfb-run", "--server-args=-screen 0 1920x1080x24", \
-     "python", "-m", "news_crawler", "--role", "discovery", "--portal", "google"]
+     "python", "-m", "app", "--role", "discovery", "--portal", "google"]
 ```
 
 **`fonts-nanum` 설치 이유**: Chrome 이 한글을 렌더링할 때 폰트가 없으면 글자가 깨져
@@ -241,11 +241,11 @@ CMD ["xvfb-run", "--server-args=-screen 0 1920x1080x24", \
 ### docker-compose 서비스 분리 예시
 
 ```yaml
-  discovery-naver:
+  discovery-naver_news:
     build:
       context: .
       dockerfile: Dockerfile          # 기본 이미지
-    command: python -m news_crawler --role discovery --portal naver --worker-id naver-1
+    command: python -m app --role discovery --portal naver_news --worker-id naver_news-1
     env_file: .env.dev
     volumes:
       - ./logs:/app/logs
@@ -255,7 +255,7 @@ CMD ["xvfb-run", "--server-args=-screen 0 1920x1080x24", \
     build:
       context: .
       dockerfile: Dockerfile.google   # Chrome 이미지
-    command: python -m news_crawler --role discovery --portal google --worker-id google-1
+    command: python -m app --role discovery --portal google_news --worker-id google-1
     env_file: .env.dev
     volumes:
       - ./logs:/app/logs
@@ -339,7 +339,7 @@ docker compose build
 docker compose run --rm extractor-1 python -m alembic upgrade head
 
 # 3. 키워드 등록 (최초 1회)
-docker compose run --rm extractor-1 python scripts/add_keyword.py --keyword "삼성전자" --portal NAVER
+docker compose run --rm extractor-1 python scripts/add_keyword.py --keyword "삼성전자" --portal naver_news
 
 # 4. 전체 시작 (extractor 1대)
 docker compose up -d

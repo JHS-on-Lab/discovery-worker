@@ -1,4 +1,4 @@
-"""
+﻿"""
 테이블 데이터 삭제 스크립트.
 
 실행:
@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
-from news_crawler.repository.db import db_context
+from app.repository.db import db_context
 
 # keyword 는 article_url 의 FK 참조 대상이므로 article_url 먼저 비워야 한다.
 _ALLOWED_TABLES = {"keyword", "article_url", "domain", "collection_log"}

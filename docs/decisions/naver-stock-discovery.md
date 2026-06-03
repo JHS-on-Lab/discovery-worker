@@ -1,4 +1,4 @@
-# 네이버 증권 종목토론 발견 방식
+﻿# 네이버 증권 종목토론 발견 방식
 
 ## 현재 구현
 
@@ -26,8 +26,8 @@ GET https://finance.naver.com/item/board.naver?code={종목코드}&page={N}
 `--display-name` 으로 종목명을 함께 등록하면 DB 조회 시 가독성이 높아진다.
 
 ```bash
-python scripts/add_keyword.py --keyword "005930" --portal NAVER_STOCK --display-name "삼성전자"
-python scripts/add_keyword.py --keyword "000660" --portal NAVER_STOCK --display-name "SK하이닉스"
+python scripts/add_keyword.py --keyword "005930" --portal naver_stock --display-name "삼성전자"
+python scripts/add_keyword.py --keyword "000660" --portal naver_stock --display-name "SK하이닉스"
 ```
 
 종목코드는 네이버 금융 종목 상세 URL(`/item/main.naver?code=XXXXXX`)에서 확인한다.

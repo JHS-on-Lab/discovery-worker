@@ -1,4 +1,4 @@
-"""
+﻿"""
 SSH 터널 + RDS 연결 확인 스크립트.
 실행: python scripts/check_db.py
 """
@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
-from news_crawler.repository.db import db_context
+from app.repository.db import db_context
 
 
 def main():

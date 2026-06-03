@@ -1,10 +1,10 @@
-"""
+﻿"""
 keyword 테이블에 키워드 추가.
 
 실행:
-  python scripts/add_keyword.py --keyword "삼성전자" --portal NAVER
+  python scripts/add_keyword.py --keyword "삼성전자" --portal NAVER_NEWS
   python scripts/add_keyword.py --keyword "005930" --portal NAVER_STOCK --display-name "삼성전자"
-  python scripts/add_keyword.py --keyword "三星电子" --portal GOOGLE --display-name "삼성전자 (중문)"
+  python scripts/add_keyword.py --keyword "三星电子" --portal GOOGLE_NEWS --display-name "삼성전자 (중문)"
 """
 
 import sys
@@ -14,14 +14,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
-from news_crawler.repository.db import db_context
+from app.repository.db import db_context
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--keyword",      required=True)
-    p.add_argument("--portal",       default="NAVER",
-                   choices=["NAVER", "DAUM", "GOOGLE", "WEIBO", "NAVER_STOCK"])
+    p.add_argument("--portal",       default="naver_news",
+                   choices=["naver_news", "daum_news", "google_news", "weibo", "naver_stock"])
     p.add_argument("--interval",     default=86400, type=int, help="수집 주기(초), 기본 1일")
     p.add_argument("--priority",     default=0, type=int)
     p.add_argument("--display-name", default=None, help="사람이 읽기 쉬운 라벨 (종목명, 검색어 설명 등)")
@@ -43,7 +43,7 @@ def main():
                 """),
                 {
                     "kw":           args.keyword,
-                    "portal":       args.portal,
+                    "portal":       args.portal.upper(),
                     "interval":     args.interval,
                     "priority":     args.priority,
                     "display_name": args.display_name,

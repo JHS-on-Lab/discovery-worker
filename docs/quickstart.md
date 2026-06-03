@@ -1,4 +1,4 @@
-# 빠른 시작 가이드
+﻿# 빠른 시작 가이드
 
 처음 코드를 받고 첫 수집까지 완료하는 순서를 설명한다.
 
@@ -20,7 +20,7 @@
 ### 가상환경 생성 및 패키지 설치
 
 ```bash
-cd news-crawler
+cd keyword-collector
 uv venv
 uv pip install -r requirements.txt
 ```
@@ -45,7 +45,7 @@ playwright install chromium
 **Ubuntu 서버에서 실행 시:**
 ```bash
 export APP_ENV=dev
-python -m news_crawler --role discovery --portal naver
+python -m app --role discovery --portal naver_news
 ```
 
 또는 systemd/Docker 환경변수로 `APP_ENV=dev` 주입.
@@ -63,7 +63,7 @@ python scripts/check_db.py
 ```
 DB 연결 확인 중...
   MySQL 버전 : 8.4.x
-  현재 DB   : news_crawler
+  현재 DB   : keyword_collector
 연결 성공.
 ```
 
@@ -95,16 +95,16 @@ python scripts/verify_schema.py
 
 ```bash
 # 일반 뉴스 포털
-python scripts/add_keyword.py --keyword "삼성전자" --portal NAVER
-python scripts/add_keyword.py --keyword "삼성전자" --portal DAUM
-python scripts/add_keyword.py --keyword "삼성전자" --portal GOOGLE
+python scripts/add_keyword.py --keyword "삼성전자" --portal naver_news
+python scripts/add_keyword.py --keyword "삼성전자" --portal daum_news
+python scripts/add_keyword.py --keyword "삼성전자" --portal google_news
 
 # 네이버 증권 종목토론 — keyword 는 종목코드, --display-name 으로 종목명 지정
-python scripts/add_keyword.py --keyword "005930" --portal NAVER_STOCK --display-name "삼성전자"
-python scripts/add_keyword.py --keyword "000660" --portal NAVER_STOCK --display-name "SK하이닉스"
+python scripts/add_keyword.py --keyword "005930" --portal naver_stock --display-name "삼성전자"
+python scripts/add_keyword.py --keyword "000660" --portal naver_stock --display-name "SK하이닉스"
 
 # 다국어 키워드에 설명 라벨 추가
-python scripts/add_keyword.py --keyword "三星电子" --portal GOOGLE --display-name "삼성전자 (중문)"
+python scripts/add_keyword.py --keyword "三星电子" --portal google_news --display-name "삼성전자 (중문)"
 ```
 
 등록 결과 확인:
@@ -116,14 +116,14 @@ SELECT id, keyword, display_name, portal_type, enabled, next_discover_at FROM ke
 
 ## 5단계 — 발견 워커 실행
 
-키워드를 순환하며 뉴스 기사 URL을 수집한다.
+키워드를 순환하며 콘텐츠 URL을 수집한다.
 
 ```bash
 # 한 번 실행하고 결과 확인 (자동 루프 X)
-python scripts/run_discovery.py --keyword "삼성전자" --portal NAVER
+python scripts/run_discovery.py --keyword "삼성전자" --portal naver_news
 
 # 자동 루프 (계속 실행)
-python -m news_crawler --role discovery --portal naver
+python -m app --role discovery --portal naver_news
 ```
 
 수집 결과 확인:
@@ -153,7 +153,7 @@ ORDER BY cl.started_at DESC LIMIT 20;
 python scripts/run_extraction.py --limit 10
 
 # 자동 루프 (계속 실행)
-python -m news_crawler --role extraction
+python -m app --role extraction
 ```
 
 ---
@@ -165,7 +165,7 @@ python -m news_crawler --role extraction
 dir data\
 
 # 샘플 1건 출력 (PowerShell) — worker-id 기본값은 worker-1
-Get-Content data\2026-05-31\NAVER-worker-1.jsonl | Select-Object -First 1 | python -m json.tool
+Get-Content data\2026-05-31\naver_news-worker-1.jsonl | Select-Object -First 1 | python -m json.tool
 ```
 
 JSON 구조:
@@ -174,7 +174,7 @@ JSON 구조:
   "url": "https://...",
   "title": "기사 제목",
   "body": "본문 전체...",
-  "portal_type": "NAVER",
+  "portal_type": "NAVER_NEWS",
   "keyword": "삼성전자",
   "extraction_method": "trafilatura",
   "collected_at": "2026-05-31T12:00:00+00:00"

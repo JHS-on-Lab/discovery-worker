@@ -1,4 +1,4 @@
-"""
+﻿"""
 Alembic env.py — SSH 터널을 열고 RDS에 연결한 뒤 마이그레이션을 실행한다.
 """
 
@@ -11,8 +11,8 @@ from sqlalchemy import engine_from_config, pool, create_engine
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from news_crawler import config as app_config
-from news_crawler.repository.db import db_context
+from app import config as app_config
+from app.repository.db import db_context
 
 alembic_config = context.config
 if alembic_config.config_file_name:

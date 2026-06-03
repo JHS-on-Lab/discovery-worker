@@ -1,4 +1,4 @@
-# 네이버 · 다음 뉴스 발견 전략
+﻿# 네이버 · 다음 뉴스 발견 전략
 
 ## 네이버 기본 동작
 
@@ -132,7 +132,7 @@ WHERE keyword_id = :kid
 ```
 GET → 200, 하지만 sds-comps-base-layout 셀렉터에 매칭 없음 → urls=[]
   ↓
-WARNING [adapter] naver 0 urls keyword='...' page=N
+WARNING [adapter] naver_news 0 urls keyword='...' page=N
 collection_log: urls_found=0, error_msg=NULL (정상 처리)
 ```
 
@@ -145,7 +145,7 @@ collection_log: urls_found=0, error_msg=NULL (정상 처리)
 `error.log` 에서 아래 패턴이 반복될 때의 진단·조치 절차.
 
 ```
-WARNING [adapter] naver 0 urls keyword='...' page=N — bot detection or sds-comps-base-layout change
+WARNING [adapter] naver_news 0 urls keyword='...' page=N — bot detection or sds-comps-base-layout change
 ```
 
 **주의**: 크롤러는 멈추지 않는다. 해당 키워드가 조용히 0건으로 기록될 뿐이므로  
@@ -165,7 +165,7 @@ WARNING [adapter] naver 0 urls keyword='...' page=N — bot detection or sds-com
 
 ```bash
 # DB 저장 없이 셀렉터 동작만 확인
-.venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal NAVER
+.venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal naver_news
 
 # 0건이면 HTML 덤프 후 브라우저로 열어 구조 확인
 python - <<'EOF'
@@ -214,7 +214,7 @@ NAVER_MAX_PAGES=10   # 기본 50 → 10으로 임시 축소
 Playwright 는 쿠키·세션을 유지해 봇 감지 우회 가능성이 높다.  
 단, 리소스 비용이 크므로 최후 수단으로 사용.
 
-현재 NaverAdapter 는 `render_mode=static` 고정이므로  
+현재 NaverNewsAdapter 는 `render_mode=static` 고정이므로  
 헤드리스 전환은 코드 수정 또는 별도 어댑터 분기가 필요하다 (미구현).
 
 ```sql
@@ -251,9 +251,9 @@ for a in tree.css("a[href^='http']"):
         print(repr(parent_class), href[:80])
 ```
 
-**조치: naver.py `_parse_urls` 셀렉터 교체**
+**조치: naver_news.py `_parse_urls` 셀렉터 교체**
 
-[`news_crawler/adapters/naver.py`의 `_parse_urls`](../../news_crawler/adapters/naver.py) 함수에서 조건 수정:
+[`app/adapters/naver_news.py`의 `_parse_urls`](../../app/adapters/naver_news.py) 함수에서 조건 수정:
 
 ```python
 # 기존 (파손된 경우)
@@ -269,7 +269,7 @@ if "새로_확인된_클래스명" not in (parent.attributes.get("class") or "")
 
 ```bash
 # 수정 후 preview_adapter 로 URL 반환 확인
-.venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal NAVER
+.venv\Scripts\python.exe scripts\preview_adapter.py --keyword "삼성전자" --portal naver_news
 
 # URL 이 정상 반환되면 워커 재시작 (hot-reload 없음 — 코드 변경이므로)
 ```
@@ -283,10 +283,10 @@ if "새로_확인된_클래스명" not in (parent.attributes.get("class") or "")
 
 ```bash
 # pd=1 : 1주 이내 (누락 기간이 7일 이내일 때)
-.venv\Scripts\python.exe scripts\run_discovery.py --keyword "블랙핑크" --portal NAVER --period 1 --pages 50
+.venv\Scripts\python.exe scripts\run_discovery.py --keyword "블랙핑크" --portal naver_news --period 1 --pages 50
 
 # pd=2 : 1개월 이내
-.venv\Scripts\python.exe scripts\run_discovery.py --keyword "블랙핑크" --portal NAVER --period 2 --pages 50
+.venv\Scripts\python.exe scripts\run_discovery.py --keyword "블랙핑크" --portal naver_news --period 2 --pages 50
 ```
 
 중복 URL 은 `url_hash` UNIQUE 제약으로 자동 무시된다.
@@ -308,10 +308,10 @@ _IDLE_SLEEP_SEC = 60   # dispatcher.py
 
 ```bash
 # 워커 (무한 루프, 전 키워드 순환)
-.venv\Scripts\python.exe -m news_crawler --role discovery --portal naver
+.venv\Scripts\python.exe -m app --role discovery --portal naver_news
 
 # 단일 키워드 수동 실행
-.venv\Scripts\python.exe scripts\run_discovery.py --keyword "삼성전자" --portal NAVER --pages 10
+.venv\Scripts\python.exe scripts\run_discovery.py --keyword "삼성전자" --portal naver_news --pages 10
 ```
 
 ---
@@ -331,7 +331,7 @@ ORDER BY cl.started_at DESC;
 -- 403 재시도 대기 중인 키워드 (next_discover_at 이 30분 이내)
 SELECT keyword, display_name, next_discover_at, last_cursor
 FROM keyword
-WHERE portal_type = 'NAVER'
+WHERE portal_type = 'naver_news'
   AND next_discover_at BETWEEN NOW() AND NOW() + INTERVAL 30 MINUTE;
 
 -- 오늘 포털별 수집 성공률

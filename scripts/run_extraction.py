@@ -1,4 +1,4 @@
-"""
+﻿"""
 article_url 테이블의 discovered URL 을 읽어 본문 추출 → FileSink 저장.
 워커 루프 대신 지정한 건수만 처리하고 종료.
 
@@ -21,23 +21,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from news_crawler import logging_setup, config
+from app import logging_setup, config
 logging_setup.setup("run_extraction")
 log = logging.getLogger("run_extraction")
 
-from news_crawler.repository.db import db_context
-from news_crawler.repository.article_url_repo import ArticleUrlRepo
-from news_crawler.repository.domain_repo import DomainRepo
-from news_crawler.domain_logic.backoff import next_retry_at
-from news_crawler.domain_logic.failure_classifier import classify_http, classify_exception
-from news_crawler.extraction.extractor import DefaultExtractor
-from news_crawler.fetch.headless import HeadlessFetcher, fetch_by_render_mode
-from news_crawler.fetch.http_client import HttpFetcher
-from news_crawler.fetch.rate_limit import RateLimiter
-from news_crawler.sink import make_sink
-from news_crawler.types import ExtractionFailure, RenderMode
+from app.repository.db import db_context
+from app.repository.article_url_repo import ArticleUrlRepo
+from app.repository.domain_repo import DomainRepo
+from app.domain_logic.backoff import next_retry_at
+from app.domain_logic.failure_classifier import classify_http, classify_exception
+from app.extraction.extractor import DefaultExtractor
+from app.fetch.headless import HeadlessFetcher, fetch_by_render_mode
+from app.fetch.http_client import HttpFetcher
+from app.fetch.rate_limit import RateLimiter
+from app.sink import make_sink
+from app.types import ExtractionFailure, RenderMode
 
-_PORTALS = ["NAVER", "DAUM", "GOOGLE", "WEIBO", "NAVER_STOCK"]
+_PORTALS = ["NAVER_NEWS", "DAUM_NEWS", "GOOGLE_NEWS", "WEIBO", "NAVER_STOCK"]
 
 p = argparse.ArgumentParser()
 p.add_argument("--limit",     type=int, default=50,
