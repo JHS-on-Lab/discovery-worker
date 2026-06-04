@@ -19,8 +19,8 @@ from sqlalchemy import text
 from app.repository.db import db_context
 
 # keyword 는 article_url 의 FK 참조 대상이므로 article_url 먼저 비워야 한다.
-_ALLOWED_TABLES = {"keyword", "article_url", "domain", "collection_log"}
-_ALL_ORDER = ["collection_log", "article_url", "keyword", "domain"]
+_ALLOWED_TABLES = {"t_keyword", "t_article_url", "t_domain", "t_collection_log"}
+_ALL_ORDER = ["t_collection_log", "t_article_url", "t_keyword", "t_domain"]
 
 
 def _truncate(engine, tables: list[str]) -> None:

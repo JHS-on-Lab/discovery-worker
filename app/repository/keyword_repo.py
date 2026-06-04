@@ -34,7 +34,7 @@ class KeywordRepo:
             row = conn.execute(
                 text(f"""
                     SELECT id, keyword, portal_type, interval_seconds, last_cursor
-                    FROM keyword
+                    FROM t_keyword
                     WHERE enabled = true
                       AND (next_discover_at IS NULL OR next_discover_at <= NOW())
                       {portal_filter}
@@ -53,7 +53,7 @@ class KeywordRepo:
             # 즉시 next_discover_at 갱신 → 다른 워커가 재점유 불가
             conn.execute(
                 text("""
-                    UPDATE keyword
+                    UPDATE t_keyword
                     SET next_discover_at = NOW() + INTERVAL :sec SECOND
                     WHERE id = :kid
                 """),
@@ -66,7 +66,7 @@ class KeywordRepo:
         """next_discover_at 을 지정 시각으로 갱신한다. 403 재시도 등에 사용."""
         with self._engine.begin() as conn:
             conn.execute(
-                text("UPDATE keyword SET next_discover_at = :next_at WHERE id = :kid"),
+                text("UPDATE t_keyword SET next_discover_at = :next_at WHERE id = :kid"),
                 {"next_at": next_at, "kid": keyword_id},
             )
 
@@ -77,7 +77,7 @@ class KeywordRepo:
         """
         with self._engine.begin() as conn:
             conn.execute(
-                text("UPDATE keyword SET last_cursor = :cursor WHERE id = :kid"),
+                text("UPDATE t_keyword SET last_cursor = :cursor WHERE id = :kid"),
                 {"cursor": cursor, "kid": keyword_id},
             )
 
@@ -91,8 +91,8 @@ class KeywordRepo:
                            k.enabled, k.disabled_reason,
                            k.next_discover_at, k.priority,
                            MAX(CASE WHEN cl.error_msg IS NULL THEN cl.started_at END) AS last_discovered_at
-                    FROM keyword k
-                    LEFT JOIN collection_log cl
+                    FROM t_keyword k
+                    LEFT JOIN t_collection_log cl
                            ON cl.keyword_id = k.id AND cl.run_type = 'discovery'
                     {portal_filter}
                     GROUP BY k.id

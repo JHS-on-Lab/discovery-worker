@@ -25,7 +25,7 @@ class DomainRepo:
                            crawl_delay_ms, render_mode, proxy_tier,
                            cooldown_until, recent_fail_count,
                            success_rate, avg_body_len
-                    FROM domain
+                    FROM t_domain
                     WHERE host = :host
                 """),
                 {"host": host},
@@ -37,7 +37,7 @@ class DomainRepo:
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
-                    INSERT INTO domain (host, recent_fail_count, success_rate, avg_body_len, updated_at)
+                    INSERT INTO t_domain (host, recent_fail_count, success_rate, avg_body_len, updated_at)
                     VALUES (:host, :fail, :rate, :body_len, NOW())
                     ON DUPLICATE KEY UPDATE
                         recent_fail_count = IF(:success, 0, recent_fail_count + 1),
@@ -65,7 +65,7 @@ class DomainRepo:
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
-                    INSERT INTO domain (host, cooldown_until, updated_at)
+                    INSERT INTO t_domain (host, cooldown_until, updated_at)
                     VALUES (:host, :until, NOW())
                     ON DUPLICATE KEY UPDATE
                         cooldown_until = :until,

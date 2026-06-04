@@ -29,7 +29,7 @@ from app.types import ErrorCode
 # ON DUPLICATE KEY UPDATE 는 url_hash 가 이미 있으면 아무것도 바꾸지 않는다.
 # 중복 URL 을 조용히 무시하기 위한 관용구다.
 _INSERT_SQL = text("""
-    INSERT INTO article_url
+    INSERT INTO t_article_url
         (url, url_hash, host, keyword_id, portal_type, status,
          attempt_count, is_manual, priority,
          collected_date, created_at, updated_at)
@@ -107,8 +107,8 @@ class ArticleUrlRepo:
                 text(f"""
                     SELECT a.id, a.url, a.host, a.portal_type, a.keyword_id,
                            a.attempt_count, COALESCE(k.keyword, '') AS keyword
-                    FROM article_url a
-                    LEFT JOIN keyword k ON k.id = a.keyword_id
+                    FROM t_article_url a
+                    LEFT JOIN t_keyword k ON k.id = a.keyword_id
                     WHERE (
                         a.status = 'discovered'
                         OR (a.status = 'failed_transient' AND a.next_retry_at <= NOW())
@@ -127,7 +127,7 @@ class ArticleUrlRepo:
             item = dict(row._mapping)
             conn.execute(
                 text("""
-                    UPDATE article_url
+                    UPDATE t_article_url
                     SET status = 'extracting',
                         claimed_at = NOW(),
                         claimed_by = :worker,
@@ -144,7 +144,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
-                    UPDATE article_url
+                    UPDATE t_article_url
                     SET status = 'stored',
                         extraction_method = :method,
                         claimed_at = NULL,
@@ -172,7 +172,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
-                    UPDATE article_url
+                    UPDATE t_article_url
                     SET status          = :status,
                         attempt_count   = attempt_count + 1,
                         last_error_code = :code,
@@ -197,7 +197,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
-                    UPDATE article_url
+                    UPDATE t_article_url
                     SET status          = 'dead',
                         attempt_count   = attempt_count + 1,
                         last_error_code = :code,
@@ -219,7 +219,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             result = conn.execute(
                 text("""
-                    UPDATE article_url
+                    UPDATE t_article_url
                     SET status     = 'discovered',
                         claimed_at = NULL,
                         claimed_by = NULL,
@@ -256,7 +256,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             result = conn.execute(
                 text(f"""
-                    UPDATE article_url
+                    UPDATE t_article_url
                     SET status        = 'discovered',
                         next_retry_at = NULL,
                         updated_at    = NOW()
@@ -270,6 +270,6 @@ class ArticleUrlRepo:
         """전체 status별 건수 (운영 확인용)."""
         with self._engine.connect() as conn:
             rows = conn.execute(
-                text("SELECT status, COUNT(*) as cnt FROM article_url GROUP BY status ORDER BY cnt DESC")
+                text("SELECT status, COUNT(*) as cnt FROM t_article_url GROUP BY status ORDER BY cnt DESC")
             ).fetchall()
         return [dict(r._mapping) for r in rows]

@@ -11,27 +11,27 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import text, inspect
 from app.repository.db import db_context
 
-EXPECTED_TABLES = {"keyword", "article_url", "domain", "collection_log", "alembic_version"}
+EXPECTED_TABLES = {"t_keyword", "t_article_url", "t_domain", "t_collection_log", "alembic_version"}
 
 EXPECTED_COLUMNS = {
-    "keyword": {
+    "t_keyword": {
         "id", "keyword", "portal_type", "interval_seconds",
         "next_discover_at", "last_cursor",
         "enabled", "priority", "display_name", "disabled_reason",
     },
-    "article_url": {
+    "t_article_url": {
         "id", "url", "url_hash", "host", "keyword_id", "portal_type",
         "status", "attempt_count", "last_error_code", "last_error_msg",
         "next_retry_at", "claimed_at", "claimed_by", "is_manual", "priority",
         "extraction_method", "collected_date", "created_at", "updated_at",
     },
-    "domain": {
+    "t_domain": {
         "host", "rules_json", "rules_enabled", "rules_version",
         "crawl_delay_ms", "render_mode", "proxy_tier",
         "cooldown_until", "recent_fail_count", "success_rate", "avg_body_len",
         "updated_at", "updated_by",
     },
-    "collection_log": {
+    "t_collection_log": {
         "id", "run_type", "run_date", "keyword_id", "portal_type", "worker_id",
         "started_at", "duration_ms",
         "urls_found", "urls_inserted", "urls_skipped",
@@ -41,11 +41,11 @@ EXPECTED_COLUMNS = {
 }
 
 EXPECTED_INDEXES = {
-    "article_url":    {"uq_article_url_hash", "ix_article_url_claim",
-                       "ix_article_url_host", "ix_article_url_keyword",
-                       "ix_article_url_status", "ix_article_url_collected_date"},
-    "keyword":        {"uq_keyword_portal", "ix_keyword_next_discover_at"},
-    "collection_log": {"ix_collection_log_date_type", "ix_collection_log_keyword_date"},
+    "t_article_url":    {"uq_article_url_hash", "ix_article_url_claim",
+                         "ix_article_url_host", "ix_article_url_keyword",
+                         "ix_article_url_status", "ix_article_url_collected_date"},
+    "t_keyword":        {"uq_keyword_portal", "ix_keyword_next_discover_at"},
+    "t_collection_log": {"ix_collection_log_date_type", "ix_collection_log_keyword_date"},
 }
 
 
@@ -95,7 +95,7 @@ def main():
                 print(f"  [OK] 인덱스 {len(actual_idxs)}개")
 
         print()
-        if "keyword" in tables:
+        if "t_keyword" in tables:
             with engine.begin() as conn:
                 conn.execute(text("SELECT id FROM keyword LIMIT 1 FOR UPDATE SKIP LOCKED"))
                 print("SKIP LOCKED 지원: OK")

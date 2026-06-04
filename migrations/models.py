@@ -17,7 +17,7 @@ metadata = MetaData()
 # keyword
 # ---------------------------------------------------------------------------
 keyword = Table(
-    "keyword",
+    "t_keyword",
     metadata,
     # ── 식별 ──────────────────────────────────────────────────────────────
     Column("id",               BigInteger,  primary_key=True, autoincrement=True),
@@ -53,7 +53,7 @@ keyword = Table(
 # status enum 값: discovered | extracting | stored
 #                 failed_transient | failed_permanent | dead
 article_url = Table(
-    "article_url",
+    "t_article_url",
     metadata,
     Column("id",               BigInteger,  primary_key=True, autoincrement=True),
     Column("url",              Text,        nullable=False),
@@ -90,7 +90,7 @@ article_url = Table(
 # 모든 도메인이 행을 갖지 않음. 오버라이드 필요한 도메인만 존재.
 # ---------------------------------------------------------------------------
 domain = Table(
-    "domain",
+    "t_domain",
     metadata,
     Column("host",             String(255), primary_key=True),
     Column("rules_json",       JSON,        nullable=True),
@@ -121,7 +121,7 @@ domain = Table(
 # error_msg: discovery 런이 예외로 중단됐을 때 이유 기록. NULL = 정상 완료.
 # ---------------------------------------------------------------------------
 collection_log = Table(
-    "collection_log",
+    "t_collection_log",
     metadata,
     Column("id",             BigInteger,  primary_key=True, autoincrement=True),
     Column("run_type",       String(20),  nullable=False),           # discovery | extraction

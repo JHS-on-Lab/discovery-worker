@@ -1,7 +1,6 @@
 # Environment
-# .env
-# .env.*
-# !.env.example
+.env
+.env.*
 
 # Virtual environments
 .venv/
