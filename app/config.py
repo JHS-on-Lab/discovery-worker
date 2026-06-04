@@ -57,6 +57,7 @@ EXTRACTION_CONCURRENCY = _env_int("EXTRACTION_CONCURRENCY", 4)
 DEFAULT_CRAWL_DELAY_MS  = _env_int("DEFAULT_CRAWL_DELAY_MS", 1000)
 DEFAULT_RENDER_MODE     = _env("DEFAULT_RENDER_MODE", "static")
 PROXY_PROVIDER          = _env("PROXY_PROVIDER", "direct")
+HTTP_VERIFY_SSL         = _env_bool("HTTP_VERIFY_SSL", True)   # 사내 자체서명 인증서 환경에서는 false
 
 # Google 발견 모드
 # search: google.com/search?tbm=nws 스크랩 (기본)

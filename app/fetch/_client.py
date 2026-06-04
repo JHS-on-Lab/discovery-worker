@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import httpx
 
+from app import config
+
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -36,4 +38,5 @@ def make_client(
         headers=headers,
         follow_redirects=follow_redirects,
         timeout=timeout,
+        verify=config.HTTP_VERIFY_SSL,
     )

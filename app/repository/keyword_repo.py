@@ -23,15 +23,19 @@ class KeywordRepo:
 
     def claim_next(self, portal: str, worker_id: str) -> dict | None:
         """
-        due 상태(enabled + next_discover_at <= NOW())인 키워드를
-        SKIP LOCKED로 원자적으로 점유하고 next_discover_at을 즉시 갱신한다.
+        due 상태(enabled + next_discover_at <= NOW())인 키워드를 원자적으로 점유한다.
+
+        낙관적 클레임 패턴 (MariaDB 10.5 호환):
+          1. 후보 N개를 조회 (잠금 없음)
+          2. 각 후보에 대해 UPDATE WHERE 조건으로 선점 시도
+          3. rowcount=1 → 내가 가져간 것 / rowcount=0 → 다른 워커가 먼저 가져간 것 → 다음 후보 시도
 
         반환: {id, keyword, portal_type, interval_seconds} 또는 None(없으면)
         """
         portal_filter = "" if portal.upper() == "ALL" else "AND portal_type = :portal"
 
         with self._engine.begin() as conn:
-            row = conn.execute(
+            rows = conn.execute(
                 text(f"""
                     SELECT id, keyword, portal_type, interval_seconds, last_cursor
                     FROM t_keyword
@@ -39,28 +43,27 @@ class KeywordRepo:
                       AND (next_discover_at IS NULL OR next_discover_at <= NOW())
                       {portal_filter}
                     ORDER BY priority DESC, next_discover_at ASC
-                    LIMIT 1
-                    FOR UPDATE SKIP LOCKED
+                    LIMIT 20
                 """),
                 {"portal": portal.upper()},
-            ).fetchone()
+            ).fetchall()
 
-            if row is None:
-                return None
+            for row in rows:
+                kw = dict(row._mapping)
+                result = conn.execute(
+                    text("""
+                        UPDATE t_keyword
+                        SET next_discover_at = NOW() + INTERVAL :sec SECOND
+                        WHERE id = :kid
+                          AND enabled = true
+                          AND (next_discover_at IS NULL OR next_discover_at <= NOW())
+                    """),
+                    {"sec": kw["interval_seconds"], "kid": kw["id"]},
+                )
+                if result.rowcount == 1:
+                    return kw
 
-            kw = dict(row._mapping)
-
-            # 즉시 next_discover_at 갱신 → 다른 워커가 재점유 불가
-            conn.execute(
-                text("""
-                    UPDATE t_keyword
-                    SET next_discover_at = NOW() + INTERVAL :sec SECOND
-                    WHERE id = :kid
-                """),
-                {"sec": kw["interval_seconds"], "kid": kw["id"]},
-            )
-
-        return kw
+        return None
 
     def reschedule(self, keyword_id: int, next_at: datetime) -> None:
         """next_discover_at 을 지정 시각으로 갱신한다. 403 재시도 등에 사용."""

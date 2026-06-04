@@ -97,11 +97,8 @@ def main():
         print()
         if "t_keyword" in tables:
             with engine.begin() as conn:
-                conn.execute(text("SELECT id FROM keyword LIMIT 1 FOR UPDATE SKIP LOCKED"))
-                print("SKIP LOCKED 지원: OK")
-        else:
-            print("SKIP LOCKED 지원: SKIP (keyword 테이블 없음)")
-            ok = False
+                conn.execute(text("SELECT id FROM t_keyword LIMIT 1 FOR UPDATE"))
+                print("FOR UPDATE 지원: OK")
 
     print()
     print("스키마 검증 완료." if ok else "스키마 검증 실패 — 위 MISSING 항목을 확인하세요.")

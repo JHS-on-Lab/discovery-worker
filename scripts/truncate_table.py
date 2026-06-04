@@ -2,10 +2,10 @@
 테이블 데이터 삭제 스크립트.
 
 실행:
-  python scripts/truncate_table.py --table article_url
-  python scripts/truncate_table.py --table collection_log
-  python scripts/truncate_table.py --table domain
-  python scripts/truncate_table.py --table keyword
+  python scripts/truncate_table.py --table t_article_url
+  python scripts/truncate_table.py --table t_collection_log
+  python scripts/truncate_table.py --table t_domain
+  python scripts/truncate_table.py --table t_keyword
   python scripts/truncate_table.py --all
 """
 

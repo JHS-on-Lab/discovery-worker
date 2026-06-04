@@ -117,12 +117,12 @@ def _run_keyword_mode(args: argparse.Namespace) -> None:
     with db_context() as engine:
         with engine.connect() as conn:
             row = conn.execute(
-                text("SELECT id FROM keyword WHERE keyword = :kw AND portal_type = :pt"),
+                text("SELECT id FROM t_keyword WHERE keyword = :kw AND portal_type = :pt"),
                 {"kw": args.keyword, "pt": args.portal.upper()},
             ).fetchone()
 
     if row is None:
-        print(f"오류: '{args.keyword}' (portal={args.portal.upper()}) 가 keyword 테이블에 없습니다. 수집을 중단합니다.")
+        print(f"오류: '{args.keyword}' (portal={args.portal.upper()}) 가 t_keyword 테이블에 없습니다. 수집을 중단합니다.")
         sys.exit(1)
 
     keyword_id = row[0]
@@ -159,7 +159,7 @@ def _peek_next_keyword(engine, portal: str) -> dict | None:
         row = conn.execute(
             text(f"""
                 SELECT id, keyword, portal_type, last_cursor
-                FROM keyword
+                FROM t_keyword
                 WHERE enabled = true
                   AND (next_discover_at IS NULL OR next_discover_at <= NOW())
                   {portal_filter}

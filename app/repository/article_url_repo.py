@@ -89,10 +89,12 @@ class ArticleUrlRepo:
     # ------------------------------------------------------------------
 
     def claim_next(self, worker_id: str, portal: str | None = None) -> dict | None:
-        """처리할 URL 하나를 꺼내 잠근다.
+        """처리할 URL 하나를 원자적으로 점유한다.
 
-        'FOR UPDATE SKIP LOCKED' 덕분에 여러 워커가 동시에 호출해도 서로 다른 행을 가져간다.
-        (SKIP LOCKED = 다른 트랜잭션이 이미 잠근 행은 건너뜀)
+        낙관적 클레임 패턴 (MariaDB 10.5 호환):
+          1. 후보 N개를 조회 (잠금 없음)
+          2. 각 후보에 대해 UPDATE WHERE status 조건으로 선점 시도
+          3. rowcount=1 → 내가 가져간 것 / rowcount=0 → 다른 워커가 먼저 가져간 것 → 다음 후보 시도
 
         portal: 지정하면 해당 portal_type 만 처리. None 이면 전체.
 
@@ -102,11 +104,13 @@ class ArticleUrlRepo:
         """
         portal_filter = "AND a.portal_type = :portal" if portal else ""
         params: dict = {"portal": portal} if portal else {}
+
         with self._engine.begin() as conn:
-            row = conn.execute(
+            rows = conn.execute(
                 text(f"""
                     SELECT a.id, a.url, a.host, a.portal_type, a.keyword_id,
-                           a.attempt_count, COALESCE(k.keyword, '') AS keyword
+                           a.attempt_count, a.status, a.next_retry_at,
+                           COALESCE(k.keyword, '') AS keyword
                     FROM t_article_url a
                     LEFT JOIN t_keyword k ON k.id = a.keyword_id
                     WHERE (
@@ -115,29 +119,32 @@ class ArticleUrlRepo:
                     )
                     {portal_filter}
                     ORDER BY a.priority DESC, a.id ASC
-                    LIMIT 1
-                    FOR UPDATE SKIP LOCKED
+                    LIMIT 20
                 """),
                 params,
-            ).fetchone()
+            ).fetchall()
 
-            if row is None:
-                return None
+            for row in rows:
+                item = dict(row._mapping)
+                result = conn.execute(
+                    text("""
+                        UPDATE t_article_url
+                        SET status = 'extracting',
+                            claimed_at = NOW(),
+                            claimed_by = :worker,
+                            updated_at = NOW()
+                        WHERE id = :id
+                          AND (
+                              status = 'discovered'
+                              OR (status = 'failed_transient' AND next_retry_at <= NOW())
+                          )
+                    """),
+                    {"worker": worker_id, "id": item["id"]},
+                )
+                if result.rowcount == 1:
+                    return item
 
-            item = dict(row._mapping)
-            conn.execute(
-                text("""
-                    UPDATE t_article_url
-                    SET status = 'extracting',
-                        claimed_at = NOW(),
-                        claimed_by = :worker,
-                        updated_at = NOW()
-                    WHERE id = :id
-                """),
-                {"worker": worker_id, "id": item["id"]},
-            )
-
-        return item
+        return None
 
     def mark_stored(self, item_id: int, extraction_method: str) -> None:
         """추출 성공: status=stored, extraction_method 기록."""

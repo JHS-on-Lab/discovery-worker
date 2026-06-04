@@ -58,7 +58,7 @@ _RULES: list[dict] = [
 # ---------------------------------------------------------------------------
 
 _UPSERT_SQL = text("""
-    INSERT INTO domain
+    INSERT INTO t_domain
         (host, rules_json, rules_enabled, rules_version,
          render_mode, crawl_delay_ms, updated_by)
     VALUES
