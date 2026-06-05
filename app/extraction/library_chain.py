@@ -85,6 +85,7 @@ def _try_trafilatura(html: str) -> tuple[str, str, str] | None:
             html,
             include_comments=False,
             include_tables=False,
+            favor_precision=True,
             no_fallback=True,
             output_format="txt",
         )
