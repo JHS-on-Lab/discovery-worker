@@ -59,6 +59,24 @@ _RULES: list[dict] = [
     },
 
     # ==========================================================================
+    # Daum 뷰어 (제휴 언론사 기사)
+    # ==========================================================================
+
+    {
+        "host": "v.daum.net",
+        "render_mode": "static",
+        "crawl_delay_ms": 500,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        # div.article_view: 본문만 포함. viewrelate_wrap(관련기사)·저작권 문구 자동 제외.
+        "rules_json": {
+            "title":    {"css": "h3.tit_view"},
+            "body":     {"css": "div.article_view"},
+            "min_body_len": 100,
+        },
+    },
+
+    # ==========================================================================
     # SPA / JavaScript 렌더링 필요 → render_mode: headless
     # trafilatura/readability 가 빈 HTML 만 보기 때문에 PARSE_ERROR 발생
     # rules_json 없이 headless fetch 후 LibraryChain 폴백으로 처리
