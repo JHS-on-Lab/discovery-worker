@@ -21,6 +21,18 @@ rules_json 형식:
   "json_api" — JSON API 를 직접 호출해 필드를 추출한다.
                URL 파라미터에서 값을 뽑아 API URL 을 구성한 뒤 GET 호출.
                응답 JSON 의 점(.) 경로로 필드를 지정한다.
+  "amp_url"  — 원본 URL 의 경로를 변환해 AMP 페이지를 정적 fetch 한 뒤
+               일반 CSS/XPath 규칙으로 추출한다.
+               순수 CSR 사이트에 AMP 버전이 있을 때 headless 대신 사용.
+
+amp_url 규칙 형식 (최상위에 "amp_url" 키를 두면 이 모드로 동작):
+  {
+    "amp_url":  {"pattern": "/article/", "replacement": "/amp/article/"},
+    "title":    {"css": "h2.titleline_title_end"},
+    "body":     {"css": "div.acem_text"},
+    "published_at": {"css": "span.aeti_num", "date_format": "%Y.%m.%d %H:%M"},
+    "min_body_len": 100
+  }
 
 json_api 규칙 형식 (최상위에 "json_api" 키를 두면 이 모드로 동작):
   {
@@ -103,6 +115,8 @@ class RuleEngine:
         """rules_json 으로 HTML(또는 JSON API)에서 필드를 추출한다."""
         if "json_api" in rules:
             return self._extract_json_api(url, rules, portal_type, keyword)
+        if "amp_url" in rules:
+            return self._extract_amp(url, rules, portal_type, keyword)
         return self._extract_html(url, html, rules, portal_type, keyword)
 
     def _extract_html(
@@ -156,6 +170,40 @@ class RuleEngine:
             collected_at=datetime.now(timezone.utc),
             extraction_method="rule:css" if "css" in str(rules) else "rule:xpath",
         )
+
+    def _extract_amp(
+        self,
+        url: str,
+        rules: dict,
+        portal_type: str,
+        keyword: str,
+    ) -> Article | ExtractionFailure:
+        """AMP URL 로 변환해 정적 fetch 후 CSS/XPath 규칙으로 추출한다."""
+        spec = rules["amp_url"]
+        amp_url = url.replace(spec["pattern"], spec["replacement"])
+
+        try:
+            from app.fetch._client import make_client
+            with make_client() as client:
+                resp = client.get(amp_url)
+                if resp.status_code == 404:
+                    return ExtractionFailure(
+                        url=url,
+                        error_code=ErrorCode.FETCH_404,
+                        error_msg="amp_url: 404 not found",
+                        is_permanent=True,
+                    )
+                resp.raise_for_status()
+                amp_html = resp.text
+        except Exception as exc:
+            return ExtractionFailure(
+                url=url,
+                error_code=ErrorCode.FETCH_CONNECTION,
+                error_msg=f"amp_url fetch failed: {exc}",
+                is_permanent=False,
+            )
+
+        return self._extract_html(url, amp_html, rules, portal_type, keyword)
 
     def _extract_json_api(
         self,

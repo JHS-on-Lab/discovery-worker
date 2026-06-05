@@ -86,28 +86,45 @@ _RULES: list[dict] = [
         "host": "news.jtbc.co.kr",
         "render_mode": "headless",
         "crawl_delay_ms": 2000,
-        "rules_enabled": False,
-        "rules_json": None,
+        "rules_enabled": True,
         "updated_by": "domain-analysis",
-        # JTBC News — React SPA. 정적 fetch 시 빈 <div id="root"> 만 수신
+        # Next.js App Router. headless 하이드레이션 후 div#ijam_content 에 본문 생성
+        "rules_json": {
+            "title": {"xpath": "//meta[@property='og:title']/@content"},
+            "body":  {"css": "div#ijam_content"},
+            "min_body_len": 100,
+        },
     },
     {
         "host": "www.ichannela.com",
-        "render_mode": "headless",
-        "crawl_delay_ms": 2000,
-        "rules_enabled": False,
-        "rules_json": None,
+        "render_mode": "static",
+        "crawl_delay_ms": 1500,
+        "rules_enabled": True,
         "updated_by": "domain-analysis",
-        # 채널A 뉴스 — JavaScript 렌더링
+        # 채널A 뉴스 — 전통적 SSR. 정적 fetch로 본문 수신 가능
+        "rules_json": {
+            "title":        {"css": "div.news_title_area h1"},
+            "body":         {"css": "div.news_artice_area"},
+            "published_at": {"css": "div.news_title_area p.news_view_day",
+                             "date_format": "%Y-%m-%d %H:%M"},
+            "min_body_len": 100,
+        },
     },
     {
         "host": "biz.sbs.co.kr",
-        "render_mode": "headless",
+        "render_mode": "static",
         "crawl_delay_ms": 1500,
-        "rules_enabled": False,
-        "rules_json": None,
+        "rules_enabled": True,
         "updated_by": "domain-analysis",
-        # SBS Biz — React 기반 SPA. 정적 HTML 에 본문 없음
+        # 순수 CSR이나 /amp/article/{id} 에 정적 본문 존재 → amp_url 변환으로 처리
+        "rules_json": {
+            "amp_url":      {"pattern": "/article/", "replacement": "/amp/article/"},
+            "title":        {"css": "h2.titleline_title_end"},
+            "body":         {"css": "div.acem_text"},
+            "published_at": {"css": "span.aeti_num",
+                             "date_format": "%Y.%m.%d %H:%M"},
+            "min_body_len": 100,
+        },
     },
 
     # ==========================================================================
