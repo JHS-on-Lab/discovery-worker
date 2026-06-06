@@ -76,7 +76,7 @@ NAVER_STOCK_MAX_PAGES = _env_int("NAVER_STOCK_MAX_PAGES",  5)
 
 # Sink
 SINK_TYPE       = _env("SINK_TYPE", "file")   # file | solr
-FILE_SINK_DIR   = _env("FILE_SINK_DIR", "./data")
+FILE_SINK_DIR   = _env("FILE_SINK_DIR", "./output")
 LOG_DIR         = _env("LOG_DIR", "./logs")
 
 # Solr (SINK_TYPE=solr 일 때만 필요)

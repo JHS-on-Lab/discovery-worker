@@ -163,7 +163,7 @@ MAX_ATTEMPTS=5
 
 # 파일 저장
 SINK_TYPE=file           # file | solr
-FILE_SINK_DIR=./data
+FILE_SINK_DIR=./output
 LOG_DIR=./logs
 
 # Solr (SINK_TYPE=solr 시)

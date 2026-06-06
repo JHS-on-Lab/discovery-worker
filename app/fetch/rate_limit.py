@@ -15,15 +15,18 @@ IP 차단이 발생할 수 있다. crawl_delay_ms 만큼 간격을 두고 요청
 from __future__ import annotations
 
 import time
+from collections import OrderedDict
 
 from app import config
 from app.repository.domain_repo import DomainRepo
+
+_MAX_HOSTS = 10_000   # 이 수를 초과하면 가장 오래된 항목부터 제거한다
 
 
 class RateLimiter:
     def __init__(self, domain_repo: DomainRepo) -> None:
         self._repo = domain_repo
-        self._last: dict[str, float] = {}   # host → 마지막 요청 monotonic 시각
+        self._last: OrderedDict[str, float] = OrderedDict()
 
     def wait(self, host: str) -> None:
         """요청 전에 host 별 딜레이만큼 대기한다."""
@@ -31,20 +34,23 @@ class RateLimiter:
         last = self._last.get(host)
 
         if last is None:
-            # 첫 요청: 즉시 통과, 시각만 기록
-            self._last[host] = time.monotonic()
+            self._record(host)
             return
 
-        if delay_ms <= 0:
-            return
+        if delay_ms > 0:
+            elapsed_ms = (time.monotonic() - last) * 1000
+            remaining_ms = delay_ms - elapsed_ms
+            if remaining_ms > 0:
+                time.sleep(remaining_ms / 1000)
 
-        elapsed_ms = (time.monotonic() - last) * 1000
-        remaining_ms = delay_ms - elapsed_ms
+        self._record(host)
 
-        if remaining_ms > 0:
-            time.sleep(remaining_ms / 1000)
-
+    def _record(self, host: str) -> None:
+        """마지막 요청 시각을 기록하고, 한도 초과 시 가장 오래된 항목을 제거한다."""
         self._last[host] = time.monotonic()
+        self._last.move_to_end(host)
+        if len(self._last) > _MAX_HOSTS:
+            self._last.popitem(last=False)
 
     def _get_delay_ms(self, host: str) -> int:
         domain = self._repo.get(host)

@@ -81,6 +81,8 @@ import time
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, parse_qs
 
+from selectolax.parser import HTMLParser
+
 from app import config
 from app.domain_logic.url_normalizer import normalize, url_hash
 from app.types import Article, ErrorCode, ExtractionFailure
@@ -173,6 +175,10 @@ class RuleEngine:
             )
 
         norm = normalize(url)
+        has_css = any(
+            isinstance(rules.get(f), dict) and "css" in rules[f]
+            for f in ("title", "body")
+        )
         return Article(
             url=norm,
             url_hash=url_hash(norm),
@@ -183,7 +189,7 @@ class RuleEngine:
             published_at=published_at,
             author=author,
             collected_at=datetime.now(timezone.utc),
-            extraction_method="rule:css" if "css" in str(rules) else "rule:xpath",
+            extraction_method="rule:css" if has_css else "rule:xpath",
         )
 
     def _extract_amp(
@@ -229,9 +235,6 @@ class RuleEngine:
         keyword: str,
     ) -> "Article | ExtractionFailure":
         """<script id="__NEXT_DATA__"> 임베드 JSON 에서 필드를 추출한다."""
-        import json as _json
-        from selectolax.parser import HTMLParser
-
         spec = rules["next_data"]
 
         # __NEXT_DATA__ 파싱
@@ -244,7 +247,7 @@ class RuleEngine:
                     error_msg="next_data: __NEXT_DATA__ script not found",
                     is_permanent=False,
                 )
-            data = _json.loads(script.text())
+            data = json.loads(script.text())
         except Exception as exc:
             return ExtractionFailure(
                 url=url,
@@ -378,7 +381,6 @@ class RuleEngine:
         if body_html and body_css:
             body = _extract_css(body_html, body_css)
         elif body_html:
-            from selectolax.parser import HTMLParser
             body = HTMLParser(body_html).text(strip=True)
         else:
             body = _json_path(data, spec.get("body", ""))
@@ -446,7 +448,6 @@ def _parse_date(text: str, date_format: str | None) -> datetime | None:
 
 
 def _extract_css(html: str, selector: str) -> str:
-    from selectolax.parser import HTMLParser
     tree = HTMLParser(html)
     nodes = tree.css(selector)
     if not nodes:

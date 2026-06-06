@@ -23,6 +23,8 @@ import time
 import logging
 from datetime import datetime, timezone, timedelta
 
+import httpx
+
 from app import config
 from app.worker import _healthcheck
 from app.adapters import make_adapter
@@ -177,9 +179,10 @@ def _run_one(
 
     except Exception as exc:
         duration_ms = int((time.monotonic() - started_mono) * 1000)
-        error_msg = f"{type(exc).__name__}: {exc}"
+        error_msg   = f"{type(exc).__name__}: {exc}"
+        is_403      = isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 403
 
-        if "403" in error_msg:
+        if is_403:
             count    = log_repo.count_today_403(keyword_id)
             retry_at = datetime.now(timezone.utc) + timedelta(seconds=config.DISCOVERY_403_RESCHEDULE_SEC)
             if count < _MAX_403_RETRIES:
@@ -223,4 +226,4 @@ def _run_one(
                 extra={**extra, "phase": "discover_error"},
             )
 
-        time.sleep(_403_SLEEP_SEC if "403" in error_msg else _ERROR_SLEEP_SEC)
+        time.sleep(_403_SLEEP_SEC if is_403 else _ERROR_SLEEP_SEC)

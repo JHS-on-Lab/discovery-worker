@@ -16,7 +16,7 @@ jitter(무작위 편차)를 더하는 이유:
 from __future__ import annotations
 
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app import config
 
@@ -28,4 +28,4 @@ def next_retry_at(attempt_count: int) -> datetime:
         config.BACKOFF_MAX_SECONDS,
     )
     jitter = random.uniform(0, delay * 0.2)
-    return datetime.utcnow() + timedelta(seconds=delay + jitter)
+    return datetime.now(timezone.utc) + timedelta(seconds=delay + jitter)
