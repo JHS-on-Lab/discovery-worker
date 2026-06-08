@@ -78,13 +78,10 @@ def _make_adapter(portal: str, max_pages: int | None):
 # 공통 수집 루프
 # ---------------------------------------------------------------------------
 
-def _discover_all(adapter, keyword: str, start_cursor: str | None = None) -> tuple[list[str], str | None]:
-    """
-    모든 페이지를 순회해 URL 을 수집하고 페이지별 결과를 출력한다.
-    반환: (수집된 URL 목록, 실패 시 재개할 cursor — 성공 완료 시 None)
-    """
+def _discover_all(adapter, keyword: str) -> tuple[list[str], str | None]:
+    """모든 페이지를 순회해 URL 을 수집하고 페이지별 결과를 출력한다."""
     all_urls: list[str] = []
-    cursor = start_cursor
+    cursor = None
     page   = 1
 
     while True:
@@ -195,11 +192,11 @@ def _run_db_mode(args: argparse.Namespace) -> None:
         keyword     = kw["keyword"]
         keyword_id  = kw["id"]
         portal_type = kw["portal_type"]
-        start_cursor = kw.get("last_cursor")
+        is_retry = kw.get("last_cursor") is not None
 
         print(f"[portal={portal_type}] keyword='{keyword}' (id={keyword_id}) 발견 시작"
               + (" (dry-run)" if dry else "")
-              + (f" cursor='{start_cursor}'" if start_cursor else ""))
+              + (" (retry: full scan from page 1)" if is_retry else ""))
 
         if not dry:
             kw_repo   = KeywordRepo(engine)
@@ -209,10 +206,9 @@ def _run_db_mode(args: argparse.Namespace) -> None:
         adapter    = _make_adapter(portal_type, args.max_pages)
         started_at = datetime.now(KST)
         mono_start = time.monotonic()
-        failed_cursor = start_cursor  # 실패 시 저장할 cursor
 
         try:
-            urls, _ = _discover_all(adapter, keyword, start_cursor)
+            urls, _ = _discover_all(adapter, keyword)  # 재시도 포함 항상 1페이지부터 full scan
             duration_ms = int((time.monotonic() - mono_start) * 1000)
 
             print(f"\n총 {len(urls)}개 URL 발견 ({duration_ms}ms)")
@@ -240,8 +236,8 @@ def _run_db_mode(args: argparse.Namespace) -> None:
             duration_ms = int((time.monotonic() - mono_start) * 1000)
             print(f"\n오류 ({duration_ms}ms): {exc}", file=sys.stderr)
             if not dry:
-                # 실패한 cursor 저장 → 다음 실행 시 해당 페이지부터 재개
-                kw_repo.set_cursor(keyword_id, failed_cursor)
+                # 실패 cursor 저장 → dispatcher 가 재시도 시 full scan 모드로 진입하게 함
+                kw_repo.set_cursor(keyword_id, "retry")
             raise
 
 

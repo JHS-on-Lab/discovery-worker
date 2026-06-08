@@ -123,12 +123,17 @@ def _run_one(
         if adapter is None:
             adapter = make_adapter(portal)
 
-        # last_cursor 가 있으면 해당 페이지부터 재개 (403 재시도 시 중단 지점 복원)
-        cursor = kw.get("last_cursor")
-        page   = 1
-        if cursor:
+        # last_cursor 가 있으면 이전 수집이 중단된 적 있음 (재시도 모드)
+        # → 항상 1페이지부터 full scan: 대기 시간 중 올라온 신규 기사 누락 방지 + 미수집 구간 완성
+        # → early-stop 비활성화: 1페이지 전부 중복이라도 뒤 페이지에 미수집 구간이 있을 수 있음
+        saved_cursor = kw.get("last_cursor")
+        is_retry     = saved_cursor is not None
+        cursor       = None  # 재시도 포함 항상 1페이지부터 시작
+        page         = 1
+
+        if is_retry:
             logger.info(
-                f"resuming from cursor='{cursor}'",
+                "retry: scanning from page 1 without early-stop",
                 extra={**extra, "phase": "discover_resume"},
             )
 
@@ -146,8 +151,8 @@ def _run_one(
 
             if not result.has_more:
                 break
-            # found > 0 이고 전부 중복(skp == found)이면 이후 페이지도 이미 수집된 데이터 → 조기 종료
-            if skp > 0 and ins == 0:
+            # 재시도 중에는 early-stop 비활성화 — 1~N 페이지 신규 기사와 미수집 구간 모두 확보
+            if not is_retry and skp > 0 and ins == 0:
                 logger.info(
                     f"p{page}: all duplicates, stopping early",
                     extra={**extra, "phase": "discover_page"},
@@ -202,9 +207,10 @@ def _run_one(
                 extra={**extra, "phase": "discover_error"},
             )
 
-        # 실패한 cursor 저장 → 재시도 시 이 페이지부터 재개
+        # retry 플래그 저장 → 다음 수집은 full scan 모드로 진입
+        # cursor 가 None 이면(1페이지 실패) 명시적 sentinel 사용
         try:
-            kw_repo.set_cursor(keyword_id, cursor)
+            kw_repo.set_cursor(keyword_id, cursor or "retry")
         except Exception:
             pass
 
