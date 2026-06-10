@@ -17,13 +17,15 @@ status 컬럼이 각 URL 의 현재 상태를 나타낸다:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from sqlalchemy import Engine, text
 
 from app.domain_logic.url_normalizer import normalize, url_hash
 from app.types import ErrorCode
+
+KST = timezone(timedelta(hours=9))
 
 
 # ON DUPLICATE KEY UPDATE 는 url_hash 가 이미 있으면 아무것도 바꾸지 않는다.
@@ -64,7 +66,7 @@ class ArticleUrlRepo:
         if not raw_urls:
             return 0, 0
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(KST)
         rows = []
         for raw in raw_urls:
             norm = normalize(raw)

@@ -14,10 +14,12 @@ JS 렌더링이 필요한 페이지(SPA, 페이월 등)는 정적 HTML 만으로
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.domain_logic.url_normalizer import normalize, url_hash
 from app.types import Article, ErrorCode, ExtractionFailure
+
+KST = timezone(timedelta(hours=9))
 
 _MIN_BODY_LEN = 200
 
@@ -72,7 +74,7 @@ class LibraryChain:
             body=body.strip(),
             published_at=None,
             author=None,
-            collected_at=datetime.now(timezone.utc),
+            collected_at=datetime.now(KST),
             extraction_method=method,
         )
 

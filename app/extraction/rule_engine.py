@@ -188,7 +188,7 @@ class RuleEngine:
             body=body.strip(),
             published_at=published_at,
             author=author,
-            collected_at=datetime.now(timezone.utc),
+            collected_at=datetime.now(_KST),
             extraction_method="rule:css" if has_css else "rule:xpath",
         )
 
@@ -315,7 +315,7 @@ class RuleEngine:
             body=body.strip(),
             published_at=published_at,
             author=author,
-            collected_at=datetime.now(timezone.utc),
+            collected_at=datetime.now(_KST),
             extraction_method="rule:next_data",
         )
 
@@ -412,7 +412,7 @@ class RuleEngine:
             body=body.strip(),
             published_at=published_at,
             author=author,
-            collected_at=datetime.now(timezone.utc),
+            collected_at=datetime.now(_KST),
             extraction_method="rule:json_api",
         )
 

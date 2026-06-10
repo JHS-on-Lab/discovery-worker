@@ -5,9 +5,11 @@ collection_log 테이블 접근 — 발견·추출 실행 이력 기록.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import Engine, text
+
+KST = timezone(timedelta(hours=9))
 
 
 @dataclass
@@ -39,7 +41,7 @@ class CollectionLogRepo:
         self._engine = engine
 
     def insert_discovery(self, log: DiscoveryLog) -> None:
-        run_date = log.started_at.astimezone(timezone.utc).date()
+        run_date = log.started_at.astimezone(KST).date()
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
@@ -69,7 +71,7 @@ class CollectionLogRepo:
             )
 
     def insert_extraction(self, log: ExtractionLog) -> None:
-        run_date = log.started_at.astimezone(timezone.utc).date()
+        run_date = log.started_at.astimezone(KST).date()
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
@@ -95,7 +97,7 @@ class CollectionLogRepo:
             )
 
     def count_today_403(self, keyword_id: int) -> int:
-        """오늘(UTC) 해당 키워드의 403 실패 횟수를 반환한다."""
+        """오늘(KST) 해당 키워드의 403 실패 횟수를 반환한다."""
         with self._engine.connect() as conn:
             return conn.execute(
                 text("""
@@ -110,7 +112,7 @@ class CollectionLogRepo:
 
     def daily_summary(self, run_date: str | None = None) -> list[dict]:
         """일자별 요약. run_date=None이면 오늘(KST)."""
-        date = run_date or datetime.now(timezone.utc).date().isoformat()
+        date = run_date or datetime.now(KST).date().isoformat()
         with self._engine.connect() as conn:
             rows = conn.execute(
                 text("""

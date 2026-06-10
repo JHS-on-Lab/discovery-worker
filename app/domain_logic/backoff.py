@@ -20,12 +20,14 @@ from datetime import datetime, timedelta, timezone
 
 from app import config
 
+KST = timezone(timedelta(hours=9))
+
 
 def next_retry_at(attempt_count: int) -> datetime:
-    """다음 재시도 시각을 계산해 반환한다 (UTC naive)."""
+    """다음 재시도 시각을 계산해 반환한다."""
     delay = min(
         config.BACKOFF_BASE_SECONDS * (2 ** attempt_count),
         config.BACKOFF_MAX_SECONDS,
     )
     jitter = random.uniform(0, delay * 0.2)
-    return datetime.now(timezone.utc) + timedelta(seconds=delay + jitter)
+    return datetime.now(KST) + timedelta(seconds=delay + jitter)

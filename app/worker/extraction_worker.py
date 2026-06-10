@@ -145,11 +145,11 @@ def _process_one(
     domain = domain_repo.get(host)
     if domain and domain.get("cooldown_until"):
         cooldown_until = domain["cooldown_until"]
-        # PyMySQL 반환 DATETIME 은 naive UTC이므로 UTC aware 로 변환 후 비교한다.
+        # PyMySQL 반환 DATETIME 은 naive이므로 KST aware 로 변환 후 비교한다.
         if isinstance(cooldown_until, datetime):
             if cooldown_until.tzinfo is None:
-                cooldown_until = cooldown_until.replace(tzinfo=timezone.utc)
-        if isinstance(cooldown_until, datetime) and cooldown_until > datetime.now(timezone.utc):
+                cooldown_until = cooldown_until.replace(tzinfo=KST)
+        if isinstance(cooldown_until, datetime) and cooldown_until > datetime.now(KST):
             url_repo.mark_failed(
                 item_id,
                 error_code=ErrorCode.FETCH_BLOCKED,

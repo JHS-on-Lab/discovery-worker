@@ -187,7 +187,7 @@ def _run_one(
 
         if is_403:
             count    = log_repo.count_today_403(keyword_id)
-            retry_at = datetime.now(timezone.utc) + timedelta(seconds=config.DISCOVERY_403_RESCHEDULE_SEC)
+            retry_at = datetime.now(KST) + timedelta(seconds=config.DISCOVERY_403_RESCHEDULE_SEC)
             if count < _MAX_403_RETRIES:
                 kw_repo.reschedule(keyword_id, retry_at)
                 logger.warning(
