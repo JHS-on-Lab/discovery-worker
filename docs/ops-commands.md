@@ -198,28 +198,28 @@ HEARTBEAT_INTERVAL_SECONDS=60
 services:
   # 포털별 발견 워커
   discover-naver-news:
-    image: keyword-collector:latest
+    image: keyword-crawler:latest
     command: ["--role", "discovery", "--portal", "naver_news"]
     env_file: .env
 
   discover-naver-stock:
-    image: keyword-collector:latest
+    image: keyword-crawler:latest
     command: ["--role", "discovery", "--portal", "naver_stock"]
     env_file: .env
 
   discover-daum:
-    image: keyword-collector:latest
+    image: keyword-crawler:latest
     command: ["--role", "discovery", "--portal", "daum_news"]
     env_file: .env
 
   discover-google:
-    image: keyword-collector:latest
+    image: keyword-crawler:latest
     command: ["--role", "discovery", "--portal", "google_news"]
     env_file: .env
 
   # 추출 워커 (병렬 확장)
   extraction:
-    image: keyword-collector:latest
+    image: keyword-crawler:latest
     command: ["--role", "extraction"]
     env_file: .env
     deploy:

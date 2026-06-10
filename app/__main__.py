@@ -30,7 +30,7 @@ _PORTALS = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="keyword-collector 워커")
+    p = argparse.ArgumentParser(description="keyword-crawler 워커")
     p.add_argument("--role",   required=True, choices=_ROLES,   help="실행 역할")
     p.add_argument("--portal", default="all", choices=_PORTALS, help="포털 필터 (기본: all)")
     p.add_argument("--worker-id", default=None, help="워커 식별자 (기본: 환경변수 WORKER_ID)")

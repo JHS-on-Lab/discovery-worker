@@ -18,7 +18,7 @@ set -e
 # 변수 설정
 # ----------------------------------------------------------------
 
-IMAGE_NAME="keyword-collector"
+IMAGE_NAME="keyword-crawler"
 
 # ${1:-latest}: 첫 번째 인자($1)가 전달됐으면 그 값을, 없으면 "latest" 를 사용.
 TAG="${1:-latest}"

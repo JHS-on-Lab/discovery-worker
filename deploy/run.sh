@@ -73,8 +73,8 @@ ENV_FILE="${PROJECT_ROOT}/.env.${APP_ENV}"
 # 볼륨 마운트 경로: 컨테이너 밖 호스트 서버에 로그와 출력물을 저장한다.
 #   컨테이너가 재시작되거나 삭제돼도 데이터가 보존된다.
 #   ~/ = 현재 사용자의 홈 디렉토리
-LOG_DIR="${HOME}/apps/data/keyword-collector/logs"
-OUTPUT_DIR="${HOME}/apps/data/keyword-collector/output"
+LOG_DIR="${HOME}/apps/data/keyword-crawler/logs"
+OUTPUT_DIR="${HOME}/apps/data/keyword-crawler/output"
 
 # ----------------------------------------------------------------
 # 환경 설정 파일 확인
@@ -119,7 +119,7 @@ fi
 # 컨테이너 실행
 # ----------------------------------------------------------------
 
-IMAGE="keyword-collector:latest"
+IMAGE="keyword-crawler:latest"
 
 echo "▶ 컨테이너 시작: ${CONTAINER_NAME}"
 echo "  이미지   : ${IMAGE}"

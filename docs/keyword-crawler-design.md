@@ -1,4 +1,4 @@
-﻿# keyword-collector — 설계 문서
+﻿# keyword-crawler — 설계 문서
 
 > 이 문서는 구현 에이전트(Claude Code)가 읽고 개발에 착수하기 위한 설계 명세다.
 > 결정 사항은 근거와 함께 기록했으며, 명세에서 벗어나야 할 경우 이 문서를 먼저 갱신한다.
@@ -112,9 +112,9 @@ python -m app --role extraction --portal all     # 공용 추출자
 ```yaml
 # 같은 이미지, 인자만 다르게
 services:
-  discover-naver_news: { image: keyword-collector:latest, command: ["--role","discovery","--portal","naver_news"] }
-  discover-daum_news:  { image: keyword-collector:latest, command: ["--role","discovery","--portal","daum_news"] }
-  extract:        { image: keyword-collector:latest, command: ["--role","extraction","--portal","all"], deploy: { replicas: 3 } }
+  discover-naver_news: { image: keyword-crawler:latest, command: ["--role","discovery","--portal","naver_news"] }
+  discover-daum_news:  { image: keyword-crawler:latest, command: ["--role","discovery","--portal","daum_news"] }
+  extract:        { image: keyword-crawler:latest, command: ["--role","extraction","--portal","all"], deploy: { replicas: 3 } }
 ```
 
 핵심 규칙: **인자는 진입점에서만 분기하고 그 아래 로직은 동일**해야 한다. `--role`은 루프 선택, `--portal`은 필터값일 뿐이다. 어댑터 선택은 발견자가 집은 키워드의 `portal_type`으로 결정되므로, 포털별 별도 코드 경로를 만들지 않는다(같은 코드에 필터만 다르게 먹인다). CLI 인자와 환경변수를 모두 받고 CLI가 환경변수를 덮어쓰게 하면 가장 유연하다(K8s에서는 환경변수 주입이 편하다).
