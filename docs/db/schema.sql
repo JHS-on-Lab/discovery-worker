@@ -3,6 +3,24 @@
 -- MySQL 8.0+  /  InnoDB  /  utf8mb4_unicode_ci
 -- ============================================================
 
+CREATE TABLE t_crawl_runtime (
+  runtime_name      VARCHAR(50)   NOT NULL              COMMENT '런타임 식별자 (PK)',
+  crawler_type      VARCHAR(50)                         COMMENT '크롤러 유형',
+  country_code      CHAR(3)                             COMMENT '국가 코드',
+  language          VARCHAR(20)                         COMMENT '언어',
+  solr_url          VARCHAR(100)                        COMMENT 'Solr 접속 URL',
+  use_yn            ENUM('Y','N') NOT NULL               COMMENT '사용 여부',
+  service_name      VARCHAR(20)                         COMMENT '서비스명',
+  thread_count      TINYINT(4)                          COMMENT '스레드 수',
+  registered_name   VARCHAR(20)                         COMMENT '등록자',
+  registered_date   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
+  last_run_date     DATETIME                            COMMENT '마지막 실행일시',
+  CHKTM             INT(10)                             COMMENT '체크 타임스탬프',
+  PRIMARY KEY (runtime_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
 CREATE TABLE t_keyword (
   id               BIGINT        NOT NULL AUTO_INCREMENT,
   keyword          VARCHAR(255)  NOT NULL COMMENT '검색어 또는 식별자. NAVER_STOCK 은 종목코드 (예: 005930)',
