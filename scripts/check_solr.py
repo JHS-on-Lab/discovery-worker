@@ -5,8 +5,8 @@ Solr 연결 확인 스크립트.
   python scripts/check_solr.py
 
 접속 모드 (.env 설정에 따라 자동 선택):
-  SOLR_URL 이 있으면  → 직접 접속
-  SOLR_URL 이 없으면  → SOLR_RUNTIME_NAME 으로 t_crawl_runtime 조회 후 접속
+  SOLR_DIRECT_ENABLED=true  → SOLR_URL 로 직접 접속
+  SOLR_DIRECT_ENABLED=false → SOLR_RUNTIME_NAME 으로 t_crawl_runtime 조회 후 접속
 
 확인 항목:
   1. solr_url 결정 (직접 or DB 조회)
@@ -24,13 +24,15 @@ from app import config
 
 
 def _get_solr_url() -> str:
-    """SOLR_URL(직접) 또는 SOLR_RUNTIME_NAME(DB 조회) 로 solr_url 을 결정한다."""
-    if config.SOLR_URL:
-        print(f"[모드] 직접 접속 (SOLR_URL)")
+    if config.SOLR_DIRECT_ENABLED:
+        if not config.SOLR_URL:
+            print("[오류] SOLR_DIRECT_ENABLED=true 이지만 SOLR_URL 이 설정되지 않았습니다.")
+            sys.exit(1)
+        print("[모드] 직접 접속 (SOLR_DIRECT_ENABLED=true)")
         return config.SOLR_URL
 
     if not config.SOLR_RUNTIME_NAME:
-        print("[오류] SOLR_URL 또는 SOLR_RUNTIME_NAME 을 .env 에 설정하세요.")
+        print("[오류] SOLR_RUNTIME_NAME 을 .env 에 설정하세요.")
         sys.exit(1)
 
     print(f"[모드] DB 조회 (SOLR_RUNTIME_NAME={config.SOLR_RUNTIME_NAME})")
@@ -52,12 +54,11 @@ def main() -> None:
     print(f"Solr URL : {solr_url}")
     print()
 
-    # 1. Ping
     print("1. Ping 테스트...")
     try:
         resp = httpx.get(f"{solr_url}/admin/ping", params={"wt": "json"}, timeout=5)
         resp.raise_for_status()
-        print(f"   상태: OK")
+        print("   상태: OK")
     except httpx.ConnectError:
         print(f"   [오류] {solr_url} 에 연결할 수 없습니다.")
         sys.exit(1)
@@ -65,7 +66,6 @@ def main() -> None:
         print(f"   [오류] {e}")
         sys.exit(1)
 
-    # 2. 문서 수
     print("2. 문서 수 확인...")
     try:
         resp = httpx.get(

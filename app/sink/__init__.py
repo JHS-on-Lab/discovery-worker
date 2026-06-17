@@ -29,7 +29,12 @@ def make_sink(engine: Engine) -> Sink:
 
 
 def _resolve_solr_url(engine: Engine) -> str:
-    """t_crawl_runtime 테이블에서 SOLR_RUNTIME_NAME 에 해당하는 solr_url 을 가져온다."""
+    """SOLR_DIRECT_ENABLED 에 따라 직접 URL 또는 t_crawl_runtime 조회 URL 을 반환한다."""
+    if config.SOLR_DIRECT_ENABLED:
+        if not config.SOLR_URL:
+            raise RuntimeError("SOLR_DIRECT_ENABLED=true 이지만 SOLR_URL 이 설정되지 않았습니다.")
+        return config.SOLR_URL
+
     from app.repository.crawl_runtime_repo import CrawlRuntimeRepo
     runtime_name = config.SOLR_RUNTIME_NAME
     url = CrawlRuntimeRepo(engine).get_solr_url(runtime_name)

@@ -80,7 +80,9 @@ FILE_SINK_DIR   = _env("FILE_SINK_DIR", "./output")
 LOG_DIR         = _env("LOG_DIR", "./logs")
 
 # Solr (SINK_TYPE=solr 일 때만 필요)
-# SOLR_URL 이 있으면 직접 접속, 없으면 SOLR_RUNTIME_NAME 으로 t_crawl_runtime 조회.
+# [직접 모드] SOLR_DIRECT_ENABLED=true → SOLR_URL 로 직접 접속
+# [DB 조회 모드] SOLR_DIRECT_ENABLED=false → SOLR_RUNTIME_NAME 으로 t_crawl_runtime 조회
+SOLR_DIRECT_ENABLED   = _env_bool("SOLR_DIRECT_ENABLED")
 SOLR_URL              = _env("SOLR_URL", "")
 SOLR_RUNTIME_NAME     = _env("SOLR_RUNTIME_NAME", "")  # t_crawl_runtime.runtime_name
 SOLR_BATCH_SIZE       = _env_int("SOLR_BATCH_SIZE", 100)
