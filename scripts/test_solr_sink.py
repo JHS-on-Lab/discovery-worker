@@ -119,6 +119,11 @@ def _resolve_sink_via_rdb(engine) -> tuple[SolrSink, str]:
     return SolrSink(info.solr_url, info.crawler_type, crawl_runtime_key), info.solr_url
 
 
+def _commit(solr_url: str) -> None:
+    resp = httpx.get(f"{solr_url.rstrip('/')}/update", params={"commit": "true"}, timeout=30)
+    resp.raise_for_status()
+
+
 def _verify(solr_url: str, url_hashes: list[str]) -> None:
     ids = " OR ".join(url_hashes)
     resp = httpx.get(
@@ -158,6 +163,7 @@ def main() -> None:
         sink.flush()
         print("[완료] flush 성공")
 
+        _commit(solr_url)
         _verify(solr_url, [c.url_hash for c in contents])
 
 
