@@ -59,6 +59,10 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT,  _handle_signal)
 
+    if config.MASKING_ENABLED:
+        from app.sink.serialize import init_masker
+        init_masker()
+
     try:
         if args.role == "discovery":
             from app.scheduling.dispatcher import run_discovery_loop

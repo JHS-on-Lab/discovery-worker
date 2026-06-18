@@ -89,6 +89,10 @@ SOLR_CRAWLER_TYPE     = _env("SOLR_CRAWLER_TYPE", "")  # SOLR_DIRECT_ENABLED=tru
 SOLR_BATCH_SIZE       = _env_int("SOLR_BATCH_SIZE", 100)
 SOLR_COMMIT_WITHIN_MS = _env_int("SOLR_COMMIT_WITHIN_MS", 5000)
 
+# Masking
+MASKING_ENABLED   = _env_bool("MASKING_ENABLED", True)
+MASKING_LIST_PATH = _env("MASKING_LIST_PATH", str(_root / "masking_list.json"))
+
 # Retry / Backoff
 MAX_ATTEMPTS              = _env_int("MAX_ATTEMPTS", 5)
 BACKOFF_BASE_SECONDS      = _env_int("BACKOFF_BASE_SECONDS", 30)

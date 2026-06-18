@@ -22,18 +22,34 @@ Solr 문서 필드:
 from __future__ import annotations
 
 from datetime import timezone
+from pathlib import Path
 from urllib.parse import urlparse
 
+from app import config
+from app.domain_logic.masking import TextMasker, mask_author
 from app.domain_logic.url_normalizer import crawl_id
 from app.types import CollectedContent
 
-_UTC = timezone.utc
+_UTC    = timezone.utc
+_masker = TextMasker()
+
+
+def init_masker(path: str | Path | None = None) -> None:
+    """masking_list.json 로드. __main__.py 에서 워커 기동 시 1회 호출."""
+    _masker.load(path or config.MASKING_LIST_PATH)
 
 
 def to_doc(content: CollectedContent, crawler_type: str, crawl_runtime_key: str) -> dict:
     """CollectedContent 을 Solr 스키마 기준 dict 로 변환한다."""
-    host = urlparse(content.url).netloc
+    host   = urlparse(content.url).netloc
     tstamp = content.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    if config.MASKING_ENABLED:
+        body   = _masker.mask(content.body or "", label="본문")
+        author = mask_author(content.author)
+    else:
+        body   = content.body
+        author = content.author
 
     doc: dict = {
         "id":                crawl_id(content.url),
@@ -43,14 +59,14 @@ def to_doc(content: CollectedContent, crawler_type: str, crawl_runtime_key: str)
         "site":              host,
         "url":               content.url,
         "title":             content.title,
-        "content":           content.body,
+        "content":           body,
         "tstamp":            tstamp,
         "doc_version":       1,
         "etc_exact1":        "1",
     }
 
-    if content.author:
-        doc["author"] = [content.author]
+    if author:
+        doc["author"] = [author]
 
     if content.keyword_id is not None:
         doc["keyword_id"] = [str(content.keyword_id)]
