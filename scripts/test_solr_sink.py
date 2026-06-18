@@ -5,11 +5,11 @@ SolrSink 를 통해 CollectedContent 더미 데이터를 Solr 에 저장하고
 실제 문서가 인덱싱됐는지 확인한다.
 
 사용법:
-  # 환경변수 모드 (SOLR_DIRECT_ENABLED=true)
+  # 환경변수 모드 (기본)
   python scripts/test_solr_sink.py
 
   # RDB 조회 모드 (t_crawl_runtime 에서 설정 가져옴)
-  python scripts/test_solr_sink.py --runtime-name <runtime_name>
+  python scripts/test_solr_sink.py --rdb
 
 환경변수 (.env 또는 실제 환경변수):
   [공통]
@@ -18,10 +18,9 @@ SolrSink 를 통해 CollectedContent 더미 데이터를 Solr 에 저장하고
   [환경변수 모드]
   SOLR_URL=http://localhost:8983/solr/<core>
   SOLR_CRAWLER_TYPE=test_crawler      (선택, 기본 "")
-  SOLR_RUNTIME_NAME=test              (선택)
 
-  [RDB 조회 모드]
-  --runtime-name 으로 t_crawl_runtime.runtime_name 을 지정.
+  [RDB 조회 모드 --rdb]
+  SOLR_RUNTIME_NAME=<runtime_name>    (t_crawl_runtime.runtime_name)
   SOLR_URL, SOLR_CRAWLER_TYPE 은 무시된다.
 """
 
@@ -105,8 +104,11 @@ def _resolve_sink_via_env() -> tuple[SolrSink, str]:
     return SolrSink(solr_url, config.SOLR_CRAWLER_TYPE, crawl_runtime_key), solr_url
 
 
-def _resolve_sink_via_rdb(engine, runtime_name: str) -> tuple[SolrSink, str]:
-    """t_crawl_runtime 을 조회해 SolrSink 를 생성한다."""
+def _resolve_sink_via_rdb(engine) -> tuple[SolrSink, str]:
+    """t_crawl_runtime 을 조회해 SolrSink 를 생성한다. runtime_name 은 SOLR_RUNTIME_NAME env 사용."""
+    runtime_name = config.SOLR_RUNTIME_NAME
+    if not runtime_name:
+        raise RuntimeError("SOLR_RUNTIME_NAME 환경변수가 설정되지 않았습니다.")
     info = CrawlRuntimeRepo(engine).get_runtime(runtime_name)
     if not info:
         raise RuntimeError(
@@ -135,9 +137,9 @@ def _verify(solr_url: str, url_hashes: list[str]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Solr 더미 데이터 투입 테스트")
     parser.add_argument(
-        "--runtime-name",
-        metavar="NAME",
-        help="RDB 조회 모드: t_crawl_runtime.runtime_name. 미지정 시 환경변수 모드.",
+        "--rdb",
+        action="store_true",
+        help="RDB 조회 모드: SOLR_RUNTIME_NAME 으로 t_crawl_runtime 을 조회해 Solr 설정을 가져온다.",
     )
     args = parser.parse_args()
 
@@ -145,8 +147,8 @@ def main() -> None:
     contents = [_make_content(item) for item in _DUMMY_ITEMS]
 
     with db_context() as engine:
-        if args.runtime_name:
-            sink, solr_url = _resolve_sink_via_rdb(engine, args.runtime_name)
+        if args.rdb:
+            sink, solr_url = _resolve_sink_via_rdb(engine)
         else:
             sink, solr_url = _resolve_sink_via_env()
 
