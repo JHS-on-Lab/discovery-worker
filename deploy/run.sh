@@ -2,22 +2,22 @@
 # ----------------------------------------------------------------
 # run.sh — 워커 컨테이너 하나를 실행한다.
 #
-# 같은 이미지로 역할(role)과 포털(portal)을 바꿔가며 여러 번 호출해
+# 같은 이미지로 역할(role)과 소스(source)를 바꿔가며 여러 번 호출해
 # 원하는 수만큼 워커를 띄울 수 있다.
 #
 # 사용법:
-#   ./deploy/run.sh <role> <portal> <worker_id>
+#   ./deploy/run.sh <role> <source> <worker_id>
 #
 # 인자:
 #   role       discovery  — 키워드로 콘텐츠 URL 을 수집하는 워커
 #              extraction — 수집된 URL 에서 본문을 추출하는 워커
 #
-#   portal     naver_news | daum_news | google_news | naver_stock | all
-#              discovery 워커가 어떤 포털을 담당할지 지정.
+#   source     naver_news | daum_news | google_news | naver_stock | all
+#              discovery 워커가 어떤 소스를 담당할지 지정.
 #              extraction 워커는 보통 all 을 사용한다.
 #
 #   worker_id  컨테이너를 구별하는 고유 이름. 로그 파일명과 JSONL 파일명에 포함된다.
-#              같은 역할/포털로 여러 컨테이너를 띄울 때 각각 다른 이름을 사용한다.
+#              같은 역할/소스로 여러 컨테이너를 띄울 때 각각 다른 이름을 사용한다.
 #
 # 예시:
 #   ./deploy/run.sh discovery naver_news  disc-naver-1
@@ -32,7 +32,7 @@ set -e  # 오류 발생 시 즉시 중단
 # ----------------------------------------------------------------
 
 ROLE="${1}"       # 첫 번째 인자: discovery | extraction
-PORTAL="${2}"     # 두 번째 인자: naver_news | daum_news | ... | all
+SOURCE="${2}"     # 두 번째 인자: naver_news | daum_news | ... | all
 WORKER_ID="${3}"  # 세 번째 인자: 컨테이너 고유 식별자
 
 # ----------------------------------------------------------------
@@ -41,13 +41,13 @@ WORKER_ID="${3}"  # 세 번째 인자: 컨테이너 고유 식별자
 # -z: 문자열이 비어있으면 참(true)
 # ----------------------------------------------------------------
 
-if [[ -z "${ROLE}" || -z "${PORTAL}" || -z "${WORKER_ID}" ]]; then
+if [[ -z "${ROLE}" || -z "${SOURCE}" || -z "${WORKER_ID}" ]]; then
     echo "오류: 인자가 부족합니다."
     echo ""
-    echo "사용법: $0 <role> <portal> <worker_id>"
+    echo "사용법: $0 <role> <source> <worker_id>"
     echo ""
-    echo "  role    : discovery | extraction"
-    echo "  portal  : naver_news | daum_news | google_news | naver_stock | all"
+    echo "  role     : discovery | extraction"
+    echo "  source   : naver_news | daum_news | google_news | naver_stock | all"
     echo "  worker_id: 고유 식별자 (예: disc-naver-1, extr-1)"
     echo ""
     echo "예시:"
@@ -123,7 +123,7 @@ IMAGE="keyword-crawler:latest"
 
 echo "▶ 컨테이너 시작: ${CONTAINER_NAME}"
 echo "  이미지   : ${IMAGE}"
-echo "  역할     : ${ROLE} / ${PORTAL}"
+echo "  역할     : ${ROLE} / ${SOURCE}"
 echo "  환경설정 : ${ENV_FILE}"
 echo "  로그     : ${LOG_DIR}"
 echo "  출력     : ${OUTPUT_DIR}"
@@ -152,7 +152,7 @@ docker run \
     -v "${OUTPUT_DIR}:/app/output" \
     \
     "${IMAGE}" \
-    python -m app --role "${ROLE}" --portal "${PORTAL}"
+    python -m app --role "${ROLE}" --source "${SOURCE}"
 
 # ----------------------------------------------------------------
 # 실행 확인 안내
