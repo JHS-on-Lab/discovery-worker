@@ -1,5 +1,5 @@
-﻿"""
-article_url 테이블 접근.
+"""
+crawl_url 테이블 접근.
 
 이 테이블은 수집할 URL 의 큐이자 처리 이력이다.
 status 컬럼이 각 URL 의 현재 상태를 나타낸다:
@@ -31,7 +31,7 @@ KST = timezone(timedelta(hours=9))
 # ON DUPLICATE KEY UPDATE 는 url_hash 가 이미 있으면 아무것도 바꾸지 않는다.
 # 중복 URL 을 조용히 무시하기 위한 관용구다.
 _INSERT_SQL = text("""
-    INSERT INTO t_article_url
+    INSERT INTO t_crawl_url
         (url, url_hash, host, keyword_id, source_type, status,
          attempt_count, is_manual, priority,
          collected_date, created_at, updated_at)
@@ -44,7 +44,7 @@ _INSERT_SQL = text("""
 """)
 
 
-class ArticleUrlRepo:
+class CrawlUrlRepo:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
 
@@ -113,7 +113,7 @@ class ArticleUrlRepo:
                     SELECT a.id, a.url, a.host, a.source_type, a.keyword_id,
                            a.attempt_count, a.status, a.next_retry_at,
                            COALESCE(k.keyword, '') AS keyword
-                    FROM t_article_url a
+                    FROM t_crawl_url a
                     LEFT JOIN t_keyword k ON k.id = a.keyword_id
                     WHERE (
                         a.status = 'discovered'
@@ -130,7 +130,7 @@ class ArticleUrlRepo:
                 item = dict(row._mapping)
                 result = conn.execute(
                     text("""
-                        UPDATE t_article_url
+                        UPDATE t_crawl_url
                         SET status = 'extracting',
                             claimed_at = NOW(),
                             claimed_by = :worker,
@@ -153,7 +153,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
-                    UPDATE t_article_url
+                    UPDATE t_crawl_url
                     SET status = 'stored',
                         extraction_method = :method,
                         claimed_at = NULL,
@@ -181,7 +181,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
-                    UPDATE t_article_url
+                    UPDATE t_crawl_url
                     SET status          = :status,
                         attempt_count   = attempt_count + 1,
                         last_error_code = :code,
@@ -206,7 +206,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
-                    UPDATE t_article_url
+                    UPDATE t_crawl_url
                     SET status          = 'dead',
                         attempt_count   = attempt_count + 1,
                         last_error_code = :code,
@@ -228,7 +228,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             result = conn.execute(
                 text("""
-                    UPDATE t_article_url
+                    UPDATE t_crawl_url
                     SET status     = 'discovered',
                         claimed_at = NULL,
                         claimed_by = NULL,
@@ -265,7 +265,7 @@ class ArticleUrlRepo:
         with self._engine.begin() as conn:
             result = conn.execute(
                 text(f"""
-                    UPDATE t_article_url
+                    UPDATE t_crawl_url
                     SET status        = 'discovered',
                         next_retry_at = NULL,
                         updated_at    = NOW()
@@ -279,6 +279,6 @@ class ArticleUrlRepo:
         """전체 status별 건수 (운영 확인용)."""
         with self._engine.connect() as conn:
             rows = conn.execute(
-                text("SELECT status, COUNT(*) as cnt FROM t_article_url GROUP BY status ORDER BY cnt DESC")
+                text("SELECT status, COUNT(*) as cnt FROM t_crawl_url GROUP BY status ORDER BY cnt DESC")
             ).fetchall()
         return [dict(r._mapping) for r in rows]

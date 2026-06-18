@@ -1,5 +1,5 @@
 ﻿"""
-추출 워커: article_url 테이블에서 URL 을 꺼내 본문을 스크랩하고 파일로 저장한다.
+추출 워커: crawl_url 테이블에서 URL 을 꺼내 본문을 스크랩하고 파일로 저장한다.
 
 한 URL 의 처리 순서:
   1. claim_next()  — DB 에서 URL 하나를 꺼낸다 (다른 워커가 동시에 같은 URL 을 가져가지 않도록 잠금)
@@ -32,7 +32,7 @@ from app.extraction.extractor import DefaultExtractor
 from app.fetch.headless import HeadlessFetcher, fetch_by_render_mode
 from app.fetch.http_client import HttpFetcher
 from app.fetch.rate_limit import RateLimiter
-from app.repository.article_url_repo import ArticleUrlRepo
+from app.repository.crawl_url_repo import CrawlUrlRepo
 from app.repository.collection_log_repo import CollectionLogRepo, ExtractionLog
 from app.repository.db import db_context
 from app.repository.domain_repo import DomainRepo
@@ -56,7 +56,7 @@ def run_extraction_loop(source: str, worker_id: str) -> None:
 
     # HeadlessFetcher 는 브라우저 프로세스를 띄우므로 루프 밖에서 한 번만 생성한다.
     with HeadlessFetcher() as headless_fetcher, db_context() as engine:
-        url_repo    = ArticleUrlRepo(engine)
+        url_repo    = CrawlUrlRepo(engine)
         log_repo    = CollectionLogRepo(engine)
         domain_repo = DomainRepo(engine)
         fetcher     = HttpFetcher()
@@ -118,7 +118,7 @@ def run_extraction_loop(source: str, worker_id: str) -> None:
 
 def _process_one(
     item: dict,
-    url_repo: ArticleUrlRepo,
+    url_repo: CrawlUrlRepo,
     domain_repo: DomainRepo,
     fetcher: HttpFetcher,
     headless_fetcher: "HeadlessFetcher",
@@ -235,7 +235,7 @@ def _process_one(
 
 
 def _handle_failure(
-    url_repo: ArticleUrlRepo,
+    url_repo: CrawlUrlRepo,
     domain_repo: DomainRepo,
     item_id: int,
     host: str,

@@ -20,7 +20,7 @@ import logging
 import time
 
 from app import config
-from app.repository.article_url_repo import ArticleUrlRepo
+from app.repository.crawl_url_repo import CrawlUrlRepo
 from app.repository.db import db_context
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ def run_reaper(worker_id: str) -> None:
     )
 
     with db_context() as engine:
-        url_repo = ArticleUrlRepo(engine)
+        url_repo = CrawlUrlRepo(engine)
 
         while True:
             time.sleep(_INTERVAL_SEC)

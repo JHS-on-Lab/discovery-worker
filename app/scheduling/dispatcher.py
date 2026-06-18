@@ -4,7 +4,7 @@
 전체 흐름:
   keyword 테이블에서 수집할 키워드 꺼내기
     → 소스 어댑터로 검색 결과 페이지 스크래핑
-    → 발견한 URL 을 article_url 테이블에 저장
+    → 발견한 URL 을 crawl_url 테이블에 저장
     → 결과를 collection_log 에 기록
     → 처리할 키워드 없으면 60초 대기 후 반복
 
@@ -14,7 +14,7 @@
   또한 집어 드는 즉시 next_discover_at 을 24시간 뒤로 밀어두기 때문에
   이 워커가 작업을 마치기 전에 다른 워커가 같은 키워드를 다시 가져가는 일이 없다.
 
-  URL 중복은 article_url.url_hash 에 걸린 UNIQUE 제약으로 DB 레벨에서 차단한다.
+  URL 중복은 crawl_url.url_hash 에 걸린 UNIQUE 제약으로 DB 레벨에서 차단한다.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from app.worker import _healthcheck
 from app.adapters import make_adapter
 from app.repository.db import db_context
 from app.repository.keyword_repo import KeywordRepo
-from app.repository.article_url_repo import ArticleUrlRepo
+from app.repository.crawl_url_repo import CrawlUrlRepo
 from app.repository.collection_log_repo import CollectionLogRepo, DiscoveryLog
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ def run_discovery_loop(source: str, worker_id: str) -> None:
 
     with db_context() as engine:
         kw_repo   = KeywordRepo(engine)
-        url_repo  = ArticleUrlRepo(engine)
+        url_repo  = CrawlUrlRepo(engine)
         log_repo  = CollectionLogRepo(engine)
 
         try:
@@ -102,7 +102,7 @@ def run_discovery_loop(source: str, worker_id: str) -> None:
 def _run_one(
     kw: dict,
     kw_repo: KeywordRepo,
-    url_repo: ArticleUrlRepo,
+    url_repo: CrawlUrlRepo,
     log_repo: CollectionLogRepo,
     worker_id: str,
     adapter=None,
