@@ -28,7 +28,8 @@ def make_sink(engine: Engine) -> Sink:
 
     # 기본값: file
     from app.sink.file_sink import FileSink
-    return FileSink()
+    _, crawler_type, crawl_runtime_key = _resolve_solr_config(engine)
+    return FileSink(crawler_type, crawl_runtime_key)
 
 
 def _resolve_solr_config(engine: Engine) -> tuple[str, str, str]:

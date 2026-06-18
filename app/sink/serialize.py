@@ -4,7 +4,7 @@ CollectedContent → dict 직렬화 — Solr 스키마 필드명 기준.
 FileSink 와 SolrSink 가 동일한 키 이름을 쓰도록 공유한다.
 
 Solr 문서 필드:
-  id                — url_hash
+  id                — crawl_id(url) (lookup3ycs64 기반 16자 hex)
   crawler_type      — t_crawl_runtime.crawler_type
   crawl_runtime_key — {$HOSTNAME}_{runtime_name}
   host              — URL 의 netloc
@@ -30,7 +30,7 @@ from app.types import CollectedContent
 _UTC = timezone.utc
 
 
-def to_solr_doc(content: CollectedContent, crawler_type: str, crawl_runtime_key: str) -> dict:
+def to_doc(content: CollectedContent, crawler_type: str, crawl_runtime_key: str) -> dict:
     """CollectedContent 을 Solr 스키마 기준 dict 로 변환한다."""
     host = urlparse(content.url).netloc
     tstamp = content.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -58,25 +58,5 @@ def to_solr_doc(content: CollectedContent, crawler_type: str, crawl_runtime_key:
     return doc
 
 
-def to_doc(content: CollectedContent) -> dict:
-    """FileSink 용 — 전체 필드를 포함한 dict 를 반환한다."""
-    host = urlparse(content.url).netloc
-    tstamp = content.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    doc: dict = {
-        "id":               content.url_hash,
-        "url":              content.url,
-        "host":             host,
-        "source_type":      content.source_type,
-        "keyword":          content.keyword,
-        "keyword_id":       content.keyword_id,
-        "title":            content.title,
-        "content":          content.body,
-        "author":           content.author,
-        "tstamp":           tstamp,
-        "extraction_method": content.extraction_method,
-        "body_len":         content.body_len,
-    }
-    if content.published_at is not None:
-        doc["postdate"] = content.published_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return doc
+# SolrSink 하위 호환용 별칭
+to_solr_doc = to_doc

@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import httpx
 
 from app import config
-from app.domain_logic.url_normalizer import normalize, url_hash
+from app.domain_logic.url_normalizer import normalize, url_hash, crawl_id
 from app.repository.crawl_runtime_repo import CrawlRuntimeRepo
 from app.repository.db import db_context
 from app.sink.solr_sink import SolrSink
@@ -164,7 +164,7 @@ def main() -> None:
         print("[완료] flush 성공")
 
         _commit(solr_url)
-        _verify(solr_url, [c.url_hash for c in contents])
+        _verify(solr_url, [crawl_id(c.url) for c in contents])
 
 
 if __name__ == "__main__":
