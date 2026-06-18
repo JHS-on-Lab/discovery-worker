@@ -21,13 +21,13 @@ class FileSink:
     def __init__(self, base_dir: str | None = None) -> None:
         self._base = Path(base_dir or config.FILE_SINK_DIR)
 
-    def write(self, article: CollectedContent) -> None:
-        date_str = article.collected_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
+    def write(self, content: CollectedContent) -> None:
+        date_str = content.collected_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
         out_dir = self._base / date_str
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / f"{article.source_type}-{config.WORKER_ID}.jsonl"
+        out_path = out_dir / f"{content.source_type}-{config.WORKER_ID}.jsonl"
 
-        row = to_doc(article)
+        row = to_doc(content)
 
         with open(out_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")

@@ -24,58 +24,59 @@ from __future__ import annotations
 from datetime import timezone
 from urllib.parse import urlparse
 
+from app.domain_logic.url_normalizer import crawl_id
 from app.types import CollectedContent
 
 _UTC = timezone.utc
 
 
-def to_solr_doc(article: CollectedContent, crawler_type: str, crawl_runtime_key: str) -> dict:
+def to_solr_doc(content: CollectedContent, crawler_type: str, crawl_runtime_key: str) -> dict:
     """CollectedContent 을 Solr 스키마 기준 dict 로 변환한다."""
-    host = urlparse(article.url).netloc
-    tstamp = article.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    host = urlparse(content.url).netloc
+    tstamp = content.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     doc: dict = {
-        "id":                article.url_hash,
+        "id":                crawl_id(content.url),
         "crawler_type":      crawler_type,
         "crawl_runtime_key": crawl_runtime_key,
         "host":              host,
         "site":              host,
-        "url":               article.url,
-        "title":             article.title,
-        "content":           article.body,
+        "url":               content.url,
+        "title":             content.title,
+        "content":           content.body,
         "tstamp":            tstamp,
         "doc_version":       1,
         "etc_exact1":        "1",
     }
 
-    if article.author:
-        doc["author"] = [article.author]
+    if content.author:
+        doc["author"] = [content.author]
 
-    if article.keyword_id is not None:
-        doc["keyword_id"] = [str(article.keyword_id)]
+    if content.keyword_id is not None:
+        doc["keyword_id"] = [str(content.keyword_id)]
 
     return doc
 
 
-def to_doc(article: CollectedContent) -> dict:
+def to_doc(content: CollectedContent) -> dict:
     """FileSink 용 — 전체 필드를 포함한 dict 를 반환한다."""
-    host = urlparse(article.url).netloc
-    tstamp = article.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    host = urlparse(content.url).netloc
+    tstamp = content.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     doc: dict = {
-        "id":               article.url_hash,
-        "url":              article.url,
+        "id":               content.url_hash,
+        "url":              content.url,
         "host":             host,
-        "source_type":      article.source_type,
-        "keyword":          article.keyword,
-        "keyword_id":       article.keyword_id,
-        "title":            article.title,
-        "content":          article.body,
-        "author":           article.author,
+        "source_type":      content.source_type,
+        "keyword":          content.keyword,
+        "keyword_id":       content.keyword_id,
+        "title":            content.title,
+        "content":          content.body,
+        "author":           content.author,
         "tstamp":           tstamp,
-        "extraction_method": article.extraction_method,
-        "body_len":         article.body_len,
+        "extraction_method": content.extraction_method,
+        "body_len":         content.body_len,
     }
-    if article.published_at is not None:
-        doc["postdate"] = article.published_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if content.published_at is not None:
+        doc["postdate"] = content.published_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return doc

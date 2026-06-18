@@ -35,9 +35,9 @@ class SolrSink:
         self._batch_size         = config.SOLR_BATCH_SIZE
         self._buffer: list[dict] = []
 
-    def write(self, article: CollectedContent) -> None:
+    def write(self, content: CollectedContent) -> None:
         self._buffer.append(
-            to_solr_doc(article, self._crawler_type, self._crawl_runtime_key)
+            to_solr_doc(content, self._crawler_type, self._crawl_runtime_key)
         )
         if len(self._buffer) >= self._batch_size:
             self.flush()

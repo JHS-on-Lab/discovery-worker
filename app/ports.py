@@ -76,6 +76,6 @@ class Sink(Protocol):
     호출부 코드는 변경 없이 Sink 인터페이스만 사용한다.
     """
 
-    def write(self, article: CollectedContent) -> None:
+    def write(self, content: CollectedContent) -> None:
         """콘텐츠를 저장한다. SolrSink는 url_hash로 멱등 upsert, FileSink는 append."""
         ...
