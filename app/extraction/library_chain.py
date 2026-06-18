@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from app.domain_logic.url_normalizer import normalize, url_hash
-from app.types import Article, ErrorCode, ExtractionFailure
+from app.types import CollectedContent, ErrorCode, ExtractionFailure
 
 KST = timezone(timedelta(hours=9))
 
@@ -32,8 +32,9 @@ class LibraryChain:
         host: str,
         source_type: str = "",
         keyword: str = "",
-    ) -> Article | ExtractionFailure:
-        """HTML → Article. 실패 시 ExtractionFailure."""
+        keyword_id: int | None = None,
+    ) -> CollectedContent | ExtractionFailure:
+        """HTML → CollectedContent. 실패 시 ExtractionFailure."""
         result = _try_trafilatura(html)
         if result is None:
             result = _try_readability(html)
@@ -65,11 +66,12 @@ class LibraryChain:
             )
 
         norm = normalize(url)
-        return Article(
+        return CollectedContent(
             url=norm,
             url_hash=url_hash(norm),
             source_type=source_type,
             keyword=keyword,
+            keyword_id=keyword_id,
             title=title.strip(),
             body=body.strip(),
             published_at=None,

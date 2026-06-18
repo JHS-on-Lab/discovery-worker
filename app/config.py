@@ -85,6 +85,7 @@ LOG_DIR         = _env("LOG_DIR", "./logs")
 SOLR_DIRECT_ENABLED   = _env_bool("SOLR_DIRECT_ENABLED")
 SOLR_URL              = _env("SOLR_URL", "")
 SOLR_RUNTIME_NAME     = _env("SOLR_RUNTIME_NAME", "")  # t_crawl_runtime.runtime_name
+SOLR_CRAWLER_TYPE     = _env("SOLR_CRAWLER_TYPE", "")  # SOLR_DIRECT_ENABLED=true 일 때 사용
 SOLR_BATCH_SIZE       = _env_int("SOLR_BATCH_SIZE", 100)
 SOLR_COMMIT_WITHIN_MS = _env_int("SOLR_COMMIT_WITHIN_MS", 5000)
 

@@ -85,7 +85,7 @@ from selectolax.parser import HTMLParser
 
 from app import config
 from app.domain_logic.url_normalizer import normalize, url_hash
-from app.types import Article, ErrorCode, ExtractionFailure
+from app.types import CollectedContent, ErrorCode, ExtractionFailure
 
 _KST = timezone(timedelta(hours=9))
 
@@ -128,15 +128,16 @@ class RuleEngine:
         rules: dict,
         source_type: str = "",
         keyword: str = "",
-    ) -> Article | ExtractionFailure:
+        keyword_id: int | None = None,
+    ) -> CollectedContent | ExtractionFailure:
         """rules_json 으로 HTML(또는 JSON API)에서 필드를 추출한다."""
         if "json_api" in rules:
-            return self._extract_json_api(url, rules, source_type, keyword)
+            return self._extract_json_api(url, rules, source_type, keyword, keyword_id)
         if "amp_url" in rules:
-            return self._extract_amp(url, rules, source_type, keyword)
+            return self._extract_amp(url, rules, source_type, keyword, keyword_id)
         if "next_data" in rules:
-            return self._extract_next_data(url, html, rules, source_type, keyword)
-        return self._extract_html(url, html, rules, source_type, keyword)
+            return self._extract_next_data(url, html, rules, source_type, keyword, keyword_id)
+        return self._extract_html(url, html, rules, source_type, keyword, keyword_id)
 
     def _extract_html(
         self,
@@ -145,7 +146,8 @@ class RuleEngine:
         rules: dict,
         source_type: str,
         keyword: str,
-    ) -> Article | ExtractionFailure:
+        keyword_id: int | None = None,
+    ) -> CollectedContent | ExtractionFailure:
         """CSS/XPath 규칙으로 HTML 에서 필드를 추출한다."""
         title  = _apply_rule(html, rules.get("title"))
         body   = _apply_rule(html, rules.get("body"))
@@ -179,11 +181,12 @@ class RuleEngine:
             isinstance(rules.get(f), dict) and "css" in rules[f]
             for f in ("title", "body")
         )
-        return Article(
+        return CollectedContent(
             url=norm,
             url_hash=url_hash(norm),
             source_type=source_type,
             keyword=keyword,
+            keyword_id=keyword_id,
             title=title.strip(),
             body=body.strip(),
             published_at=published_at,
@@ -198,7 +201,8 @@ class RuleEngine:
         rules: dict,
         source_type: str,
         keyword: str,
-    ) -> Article | ExtractionFailure:
+        keyword_id: int | None = None,
+    ) -> CollectedContent | ExtractionFailure:
         """AMP URL 로 변환해 정적 fetch 후 CSS/XPath 규칙으로 추출한다."""
         spec = rules["amp_url"]
         amp_url = url.replace(spec["pattern"], spec["replacement"])
@@ -224,7 +228,7 @@ class RuleEngine:
                 is_permanent=False,
             )
 
-        return self._extract_html(url, amp_html, rules, source_type, keyword)
+        return self._extract_html(url, amp_html, rules, source_type, keyword, keyword_id)
 
     def _extract_next_data(
         self,
@@ -233,7 +237,8 @@ class RuleEngine:
         rules: dict,
         source_type: str,
         keyword: str,
-    ) -> "Article | ExtractionFailure":
+        keyword_id: int | None = None,
+    ) -> "CollectedContent | ExtractionFailure":
         """<script id="__NEXT_DATA__"> 임베드 JSON 에서 필드를 추출한다."""
         spec = rules["next_data"]
 
@@ -306,11 +311,12 @@ class RuleEngine:
             )
 
         norm = normalize(url)
-        return Article(
+        return CollectedContent(
             url=norm,
             url_hash=url_hash(norm),
             source_type=source_type,
             keyword=keyword,
+            keyword_id=keyword_id,
             title=title.strip(),
             body=body.strip(),
             published_at=published_at,
@@ -325,8 +331,9 @@ class RuleEngine:
         rules: dict,
         source_type: str,
         keyword: str,
-    ) -> Article | ExtractionFailure:
-        """JSON API 를 직접 호출해 Article 을 추출한다."""
+        keyword_id: int | None = None,
+    ) -> CollectedContent | ExtractionFailure:
+        """JSON API 를 직접 호출해 CollectedContent 을 추출한다."""
         spec = rules["json_api"]
 
         # 원래 URL 의 쿼리 파라미터에서 API 키 값 추출
@@ -403,11 +410,12 @@ class RuleEngine:
             )
 
         norm = normalize(url)
-        return Article(
+        return CollectedContent(
             url=norm,
             url_hash=url_hash(norm),
             source_type=source_type,
             keyword=keyword,
+            keyword_id=keyword_id,
             title=title.strip(),
             body=body.strip(),
             published_at=published_at,

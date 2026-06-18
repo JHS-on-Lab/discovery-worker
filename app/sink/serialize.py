@@ -1,51 +1,81 @@
 """
-Article → dict 직렬화 — Solr 스키마 필드명 기준.
+CollectedContent → dict 직렬화 — Solr 스키마 필드명 기준.
 
 FileSink 와 SolrSink 가 동일한 키 이름을 쓰도록 공유한다.
 
-필드명 매핑:
-  url_hash     → id
-  body         → content
-  published_at → postdate  (없으면 생략)
-  collected_at → tstamp
-
-SolrSink 는 Solr 스키마에 없는 필드를 추가로 제거한다.
-FileSink 는 반환값 전체(Solr 외 필드 포함)를 그대로 저장한다.
+Solr 문서 필드:
+  id                — url_hash
+  crawler_type      — t_crawl_runtime.crawler_type
+  crawl_runtime_key — {$HOSTNAME}_{runtime_name}
+  host              — URL 의 netloc
+  site              — host 와 동일
+  url               — 수집 URL
+  title             — 제목
+  content           — 본문
+  author            — 저자 (배열, 값이 있을 때만 포함)
+  tstamp            — 수집 시각 (UTC)
+  doc_version       — 1 고정
+  keyword_id        — t_keyword.id 문자열 변환 (배열, 값이 있을 때만 포함)
+  etc_exact1        — "1" 고정
 """
 
 from __future__ import annotations
 
-import dataclasses
+from datetime import timezone
 from urllib.parse import urlparse
 
-from app.types import Article
+from app.types import CollectedContent
+
+_UTC = timezone.utc
 
 
-def to_doc(article: Article) -> dict:
-    """Article 을 Solr 스키마 기준 키 이름의 dict 로 변환한다."""
-    d = dataclasses.asdict(article)
+def to_solr_doc(article: CollectedContent, crawler_type: str, crawl_runtime_key: str) -> dict:
+    """CollectedContent 을 Solr 스키마 기준 dict 로 변환한다."""
+    host = urlparse(article.url).netloc
+    tstamp = article.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
     doc: dict = {
-        "id":          d.pop("url_hash"),
-        "url":         d["url"],
-        "host":        urlparse(d["url"]).netloc,
-        "title":       d["title"],
-        "content":     d["body"],
-        "tstamp":      d["collected_at"].isoformat() + "Z",
-        "source_type": d["source_type"],
-        "keyword":     d["keyword"],
-        "author":      d["author"],
-        "extraction_method": d["extraction_method"],
-        "body_len":    d["body_len"],
+        "id":                article.url_hash,
+        "crawler_type":      crawler_type,
+        "crawl_runtime_key": crawl_runtime_key,
+        "host":              host,
+        "site":              host,
+        "url":               article.url,
+        "title":             article.title,
+        "content":           article.body,
+        "tstamp":            tstamp,
+        "doc_version":       1,
+        "etc_exact1":        "1",
     }
-    if d["published_at"] is not None:
-        doc["postdate"] = d["published_at"].isoformat() + "Z"
+
+    if article.author:
+        doc["author"] = [article.author]
+
+    if article.keyword_id is not None:
+        doc["keyword_id"] = [str(article.keyword_id)]
+
     return doc
 
 
-# SolrSink 가 전송할 필드 — 스키마에 존재하는 것만
-_SOLR_FIELDS = {"id", "url", "host", "title", "content", "postdate", "tstamp"}
+def to_doc(article: CollectedContent) -> dict:
+    """FileSink 용 — 전체 필드를 포함한 dict 를 반환한다."""
+    host = urlparse(article.url).netloc
+    tstamp = article.collected_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-
-def to_solr_doc(article: Article) -> dict:
-    """Solr 스키마에 있는 필드만 포함한 dict 를 반환한다."""
-    return {k: v for k, v in to_doc(article).items() if k in _SOLR_FIELDS}
+    doc: dict = {
+        "id":               article.url_hash,
+        "url":              article.url,
+        "host":             host,
+        "source_type":      article.source_type,
+        "keyword":          article.keyword,
+        "keyword_id":       article.keyword_id,
+        "title":            article.title,
+        "content":          article.body,
+        "author":           article.author,
+        "tstamp":           tstamp,
+        "extraction_method": article.extraction_method,
+        "body_len":         article.body_len,
+    }
+    if article.published_at is not None:
+        doc["postdate"] = article.published_at.astimezone(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return doc

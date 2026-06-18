@@ -69,6 +69,7 @@ def run_extraction_loop(source: str, worker_id: str) -> None:
         last_heartbeat      = time.monotonic()
         batch_start_dt      = datetime.now(KST)
         batch_start_mono    = time.monotonic()
+        source_filter       = None if source.upper() == "ALL" else source.upper()
 
         while True:
             now = time.monotonic()
@@ -79,8 +80,13 @@ def run_extraction_loop(source: str, worker_id: str) -> None:
                 )
                 last_heartbeat = now
                 _healthcheck.write()
+                _flush_log(log_repo, source, worker_id,
+                           batch_start_dt, batch_start_mono,
+                           processed, urls_success, urls_failed)
+                processed = urls_success = urls_failed = 0
+                batch_start_dt   = datetime.now(KST)
+                batch_start_mono = time.monotonic()
 
-            source_filter = None if source.upper() == "ALL" else source.upper()
             try:
                 item = url_repo.claim_next(worker_id=worker_id, source=source_filter)
             except Exception:
@@ -128,36 +134,20 @@ def _process_one(
     worker_id: str,
 ) -> bool:
     """URL 하나를 처리한다. 성공 시 True, 실패 시 False 반환."""
-    item_id = item["id"]
-    url     = item["url"]
-    host    = item["host"]
-    source  = item["source_type"]
-    keyword = item.get("keyword", "")
-    attempt = item["attempt_count"]
+    item_id    = item["id"]
+    url        = item["url"]
+    host       = item["host"]
+    source     = item["source_type"]
+    keyword    = item.get("keyword", "")
+    keyword_id = item.get("keyword_id")
+    attempt    = item["attempt_count"]
 
     extra = {
         "phase": "extract", "worker_id": worker_id,
         "host": host, "url_id": str(item_id), "component": "extractor",
     }
 
-    # 해당 도메인이 차단 상태(cooldown)인지 확인한다.
-    # 429(Too Many Requests) 등을 받으면 domain_repo.set_cooldown() 으로 쿨다운이 설정된다.
     domain = domain_repo.get(host)
-    if domain and domain.get("cooldown_until"):
-        cooldown_until = domain["cooldown_until"]
-        # PyMySQL 반환 DATETIME 은 naive이므로 KST aware 로 변환 후 비교한다.
-        if isinstance(cooldown_until, datetime):
-            if cooldown_until.tzinfo is None:
-                cooldown_until = cooldown_until.replace(tzinfo=KST)
-        if isinstance(cooldown_until, datetime) and cooldown_until > datetime.now(KST):
-            url_repo.mark_failed(
-                item_id,
-                error_code=ErrorCode.FETCH_BLOCKED,
-                error_msg=f"domain on cooldown until {cooldown_until.isoformat()}",
-                is_permanent=False,
-                next_retry_at=cooldown_until,
-            )
-            return False
 
     # 레이트 리밋
     limiter.wait(host)
@@ -198,7 +188,7 @@ def _process_one(
     # Extract
     result = extractor.extract(
         url=fr.url, html=fr.html, host=host,
-        source_type=source, keyword=keyword,
+        source_type=source, keyword=keyword, keyword_id=keyword_id,
     )
 
     if isinstance(result, ExtractionFailure):
@@ -215,7 +205,6 @@ def _process_one(
         sink.write(result)
     except Exception as exc:
         logger.exception(f"sink write failed url={url}", extra=extra)
-        domain_repo.upsert_health(host, success=False, body_len=None)
         url_repo.mark_failed(
             item_id,
             error_code=ErrorCode.UNKNOWN,

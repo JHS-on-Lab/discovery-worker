@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from app.extraction.library_chain import LibraryChain
 from app.extraction.rule_engine import RuleEngine
-from app.types import Article, ExtractionFailure
+from app.types import CollectedContent, ExtractionFailure
 
 
 class DefaultExtractor:
@@ -28,7 +28,8 @@ class DefaultExtractor:
         host: str,
         source_type: str = "",
         keyword: str = "",
-    ) -> Article | ExtractionFailure:
+        keyword_id: int | None = None,
+    ) -> CollectedContent | ExtractionFailure:
         # 1단계: 도메인 전용 규칙 시도
         if self._domain_repo is not None:
             domain_row = self._domain_repo.get(host)
@@ -37,8 +38,9 @@ class DefaultExtractor:
                 result = self._engine.extract(
                     url=url, html=html, host=host,
                     rules=rules, source_type=source_type, keyword=keyword,
+                    keyword_id=keyword_id,
                 )
-                if isinstance(result, Article):
+                if isinstance(result, CollectedContent):
                     return result
                 # json_api 규칙은 LibraryChain 이 도움이 안 되므로 바로 반환
                 if "json_api" in rules:
@@ -48,4 +50,5 @@ class DefaultExtractor:
         return self._chain.extract(
             url=url, html=html, host=host,
             source_type=source_type, keyword=keyword,
+            keyword_id=keyword_id,
         )

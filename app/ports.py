@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from app.types import Article, DiscoverResult, ExtractionFailure, FetchResult, RenderMode
+from app.types import CollectedContent, DiscoverResult, ExtractionFailure, FetchResult, RenderMode
 
 
 @runtime_checkable
@@ -48,7 +48,7 @@ class Fetcher(Protocol):
 @runtime_checkable
 class Extractor(Protocol):
     """
-    HTML → Article 추출.
+    HTML → CollectedContent 추출.
     규칙이 있으면 규칙 우선, 없으면 라이브러리 체인.
     성공/실패 판정(본문 길이·제목 비어있음)까지 포함한다.
     """
@@ -60,9 +60,9 @@ class Extractor(Protocol):
         host: str,
         source_type: str = "",
         keyword: str = "",
-    ) -> Article | ExtractionFailure:
+    ) -> CollectedContent | ExtractionFailure:
         """
-        성공 시 Article, 실패 시 ExtractionFailure 반환.
+        성공 시 CollectedContent, 실패 시 ExtractionFailure 반환.
         예외를 올리지 않고 ExtractionFailure로 감싸서 반환한다.
         """
         ...
@@ -76,6 +76,6 @@ class Sink(Protocol):
     호출부 코드는 변경 없이 Sink 인터페이스만 사용한다.
     """
 
-    def write(self, article: Article) -> None:
+    def write(self, article: CollectedContent) -> None:
         """콘텐츠를 저장한다. SolrSink는 url_hash로 멱등 upsert, FileSink는 append."""
         ...

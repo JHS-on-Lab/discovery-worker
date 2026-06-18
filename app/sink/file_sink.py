@@ -1,5 +1,5 @@
 ﻿"""
-FileSink — Article 을 JSONL 파일에 기록.
+FileSink — CollectedContent 을 JSONL 파일에 기록.
 
 파티셔닝: {FILE_SINK_DIR}/{YYYY-MM-DD}/{source_type}-{worker_id}.jsonl
 worker-id 별로 파일을 분리해 여러 extractor 가 동시에 써도 충돌하지 않는다.
@@ -14,14 +14,14 @@ from pathlib import Path
 
 from app import config
 from app.sink.serialize import to_doc
-from app.types import Article
+from app.types import CollectedContent
 
 
 class FileSink:
     def __init__(self, base_dir: str | None = None) -> None:
         self._base = Path(base_dir or config.FILE_SINK_DIR)
 
-    def write(self, article: Article) -> None:
+    def write(self, article: CollectedContent) -> None:
         date_str = article.collected_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
         out_dir = self._base / date_str
         out_dir.mkdir(parents=True, exist_ok=True)

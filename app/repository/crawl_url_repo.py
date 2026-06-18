@@ -115,10 +115,12 @@ class CrawlUrlRepo:
                            COALESCE(k.keyword, '') AS keyword
                     FROM t_crawl_url a
                     LEFT JOIN t_keyword k ON k.id = a.keyword_id
+                    LEFT JOIN t_domain d ON d.host = a.host
                     WHERE (
                         a.status = 'discovered'
                         OR (a.status = 'failed_transient' AND a.next_retry_at <= NOW())
                     )
+                    AND (d.cooldown_until IS NULL OR d.cooldown_until <= NOW())
                     {source_filter}
                     ORDER BY a.priority DESC, a.id ASC
                     LIMIT 20

@@ -66,11 +66,12 @@ class DiscoverResult:
 # ---------------------------------------------------------------------------
 
 @dataclass
-class Article:
+class CollectedContent:
     url: str
     url_hash: str
     source_type: str
     keyword: str
+    keyword_id: int | None
     title: str
     body: str
     published_at: datetime | None
