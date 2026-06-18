@@ -22,7 +22,7 @@ class SourceType(str, Enum):
     NAVER_STOCK = "NAVER_STOCK"
 
 
-class ArticleStatus(str, Enum):
+class CrawlUrlStatus(str, Enum):
     DISCOVERED        = "discovered"
     EXTRACTING        = "extracting"
     STORED            = "stored"
