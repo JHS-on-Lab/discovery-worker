@@ -48,12 +48,12 @@ keyword = Table(
 )
 
 # ---------------------------------------------------------------------------
-# article_url  (큐 + 상태 기계 + 실패 보관소)
+# crawl_url  (큐 + 상태 기계 + 실패 보관소)
 # ---------------------------------------------------------------------------
 # status enum 값: discovered | extracting | stored
 #                 failed_transient | failed_permanent | dead
-article_url = Table(
-    "t_article_url",
+crawl_url = Table(
+    "t_crawl_url",
     metadata,
     Column("id",               BigInteger,  primary_key=True, autoincrement=True),
     Column("url",              Text,        nullable=False),
@@ -75,11 +75,11 @@ article_url = Table(
     Column("created_at",       DateTime,    nullable=False, server_default=func.now()),
     Column("updated_at",       DateTime,    nullable=False, server_default=func.now(),
            onupdate=func.now()),
-    UniqueConstraint("url_hash", name="uq_article_url_hash"),
+    UniqueConstraint("url_hash", name="uq_crawl_url_hash"),
     # 점유 쿼리용: WHERE status=? AND next_retry_at<=? ORDER BY priority DESC
-    Index("ix_article_url_claim", "status", "next_retry_at", "priority"),
-    Index("ix_article_url_host",  "host"),
-    Index("ix_article_url_keyword", "keyword_id"),
+    Index("ix_crawl_url_claim", "status", "next_retry_at", "priority"),
+    Index("ix_crawl_url_host",  "host"),
+    Index("ix_crawl_url_keyword", "keyword_id"),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
     mysql_collate="utf8mb4_unicode_ci",
