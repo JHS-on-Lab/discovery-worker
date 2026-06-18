@@ -5,8 +5,8 @@
 ```
 Discovery (발견)          Extraction (추출)
 ────────────────         ────────────────────
-소스 검색 페이지 스크랩   article_url 큐에서 꺼내
-  → article_url 에         → 본문 페이지 HTTP 요청
+소스 검색 페이지 스크랩   crawl_url 큐에서 꺼내
+  → crawl_url 에         → 본문 페이지 HTTP 요청
     URL 적재                → 제목·본문 파싱
                             → JSONL 저장
 ```
@@ -129,7 +129,7 @@ python scripts/verify_schema.py
 python scripts/check_db.py
 
 # 특정 테이블 데이터 삭제 (확인 프롬프트 있음)
-python scripts/truncate_table.py --table t_article_url
+python scripts/truncate_table.py --table t_crawl_url
 python scripts/truncate_table.py --table t_collection_log
 python scripts/truncate_table.py --table t_keyword
 
@@ -228,7 +228,7 @@ services:
 
 ---
 
-## 8. t_article_url 상태값 참조
+## 8. t_crawl_url 상태값 참조
 
 | status | 의미 | 다음 행동 |
 |---|---|---|
@@ -242,12 +242,12 @@ services:
 ```sql
 -- 상태별 현황
 SELECT source_type, status, COUNT(*) AS cnt
-FROM t_article_url
+FROM t_crawl_url
 GROUP BY source_type, status
 ORDER BY source_type, status;
 
 -- failed/dead URL 재투입 (특정 소스)
-UPDATE t_article_url
+UPDATE t_crawl_url
 SET status = 'discovered', next_retry_at = NOW(), attempt_count = 0
 WHERE status IN ('failed_permanent', 'dead')
   AND source_type = 'NAVER_NEWS';

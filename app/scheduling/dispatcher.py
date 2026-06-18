@@ -123,7 +123,7 @@ def _run_one(
             adapter = make_adapter(source)
 
         # retry_pending=True 면 이전 수집이 중단된 적 있음 (재시도 모드)
-        # → 항상 1페이지부터 full scan: 대기 시간 중 올라온 신규 기사 누락 방지 + 미수집 구간 완성
+        # → 항상 1페이지부터 full scan: 대기 시간 중 올라온 신규 콘텐츠 누락 방지 + 미수집 구간 완성
         # → early-stop 비활성화: 1페이지 전부 중복이라도 뒤 페이지에 미수집 구간이 있을 수 있음
         is_retry = bool(kw.get("retry_pending"))
         cursor   = None
@@ -149,7 +149,7 @@ def _run_one(
 
             if not result.has_more:
                 break
-            # 재시도 중에는 early-stop 비활성화 — 1~N 페이지 신규 기사와 미수집 구간 모두 확보
+            # 재시도 중에는 early-stop 비활성화 — 1~N 페이지 신규 콘텐츠와 미수집 구간 모두 확보
             if not is_retry and skp > 0 and ins == 0:
                 logger.info(
                     f"p{page}: all duplicates, stopping early",

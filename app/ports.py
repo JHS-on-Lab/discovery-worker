@@ -16,14 +16,14 @@ from app.types import Article, DiscoverResult, ExtractionFailure, FetchResult, R
 class SourceAdapter(Protocol):
     """
     소스별 발견 어댑터.
-    검색 결과 페이지를 스크래핑해 기사 URL 목록과 다음 cursor를 반환한다.
+    검색 결과 페이지를 스크래핑해 콘텐츠 URL 목록과 다음 cursor를 반환한다.
     본문은 건드리지 않는다.
     """
     source_type: str
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
         """
-        keyword를 검색해 기사 URL 목록을 반환.
+        keyword를 검색해 콘텐츠 URL 목록을 반환.
         cursor: 이전 호출의 next_cursor (첫 호출은 None).
         """
         ...
@@ -71,11 +71,11 @@ class Extractor(Protocol):
 @runtime_checkable
 class Sink(Protocol):
     """
-    수집된 기사 저장소.
+    수집된 콘텐츠 저장소.
     현재 구현: FileSink(.jsonl). 나중에 SolrSink로 교체 가능.
     호출부 코드는 변경 없이 Sink 인터페이스만 사용한다.
     """
 
     def write(self, article: Article) -> None:
-        """기사를 저장한다. SolrSink는 url_hash로 멱등 upsert, FileSink는 append."""
+        """콘텐츠를 저장한다. SolrSink는 url_hash로 멱등 upsert, FileSink는 append."""
         ...

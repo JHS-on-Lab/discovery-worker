@@ -7,24 +7,24 @@
 
 ## 1. 개요
 
-키워드 기반으로 여러 소스를 탐색해, 발견된 콘텐츠의 **URL·제목·본문·메타데이터**를 수집·저장하는 서비스다. 단발 스크립트가 아니라 운영(operation)을 전제로 한다.
+키워드 기반으로 여러 포털 소스를 탐색해, 발견된 콘텐츠의 **URL·제목·본문·메타데이터**를 수집·저장하는 서비스다. 뉴스 기사에 국한되지 않고, 포털에서 키워드로 탐색 가능한 **모든 종류의 웹 콘텐츠**를 수집 대상으로 한다. 단발 스크립트가 아니라 운영(operation)을 전제로 한다.
 
 - **대상 소스**: 네이버(뉴스·증권 종목토론), 다음 뉴스, 구글 뉴스, 바이두 뉴스 (`source_type`: `NAVER_NEWS`, `NAVER_STOCK`, `DAUM_NEWS`, `GOOGLE_NEWS`, `BAIDU_NEWS`)
 - **수집 단위**: 키워드. 키워드는 RDB에 저장되며 각 키워드는 `source_type`을 가진다.  
-  뉴스 포털은 검색어, 증권 종목토론은 종목코드 등이 키워드가 된다.
+  포털 검색 소스는 검색어, 증권 종목토론은 종목코드 등이 키워드가 된다.
 - **수집 대상의 핵심**: 본문 전문(full text). 이것이 빠지면 의미가 없다.
 - **확장 방식**: 워커 컨테이너를 늘려 병렬 처리.
 
 ### 1.1 스크래핑 전용(API 미사용) 결정
 
-본문 전문이 필수인데, 어떤 소스도 공식 API로 본문 전문을 제공하지 않는다(네이버 검색 API는 제목·요약·링크·날짜만, 다음/카카오는 뉴스 전용 검색 API 자체가 없음, 네이버 증권 종목토론·웨이보는 공개 API 미제공). 따라서 **모든 소스를 스크래핑으로 처리**한다. 발견(검색 결과 수집)도, 추출(본문 파싱)도 스크래핑이다. 그 결과 운영의 핵심 난제는 API 쿼터가 아니라 **안티봇 회피와 IP 관리**다.
+본문 전문이 필수인데, 어떤 소스도 공식 API로 본문 전문을 제공하지 않는다(네이버 검색 API는 제목·요약·링크·날짜만, 다음/카카오는 콘텐츠 전용 검색 API 자체가 없음, 네이버 증권 종목토론·웨이보는 공개 API 미제공). 따라서 **모든 소스를 스크래핑으로 처리**한다. 발견(검색 결과 수집)도, 추출(본문 파싱)도 스크래핑이다. 그 결과 운영의 핵심 난제는 API 쿼터가 아니라 **안티봇 회피와 IP 관리**다.
 
 ---
 
 ## 2. 핵심 설계 원칙
 
 1. **설정은 코드가 아니라 데이터로.** 추출 규칙, 도메인 정책, 수집 주기 등 운영 중 바뀌는 것들은 코드에 박지 않고 DB에 둔다. 재배포 없이 바꿀 수 있어야 한다.
-2. **단계는 함수 호출이 아니라 영속 테이블로 분리한다.** 발견과 추출은 서로를 호출하지 않고, RDB의 작업 테이블(`article_url`)을 통해서만 소통한다. 이 테이블이 두 단계의 인터페이스다.
+2. **단계는 함수 호출이 아니라 영속 테이블로 분리한다.** 발견과 추출은 서로를 호출하지 않고, RDB의 작업 테이블(`crawl_url`)을 통해서만 소통한다. 이 테이블이 두 단계의 인터페이스다.
 3. **경계는 포트(인터페이스)로 둔다.** Sink(저장소), Fetcher(네트워크), Extractor(추출), SourceAdapter(소스)는 모두 교체 가능한 인터페이스로 정의한다. 예: 저장소를 File→Solr로, 프록시 공급자를 단일 IP→로테이팅으로 교체해도 다른 코드는 손대지 않는다.
 4. **실패를 일급으로 다룬다.** 차단을 "막는다"가 아니라 "맞아도 우아하게 물러났다 다시 온다"로 설계한다.
 5. **테이블은 과하게 분리하지 않는다.** 상태·실패·재시도는 별도 테이블이 아니라 작업 테이블의 컬럼으로 흡수한다.
@@ -37,7 +37,7 @@
 flowchart LR
   KW[(keyword<br/>RDB)] --> DISP[Discovery dispatcher<br/>cron 트리거]
   DISP --> DA[Discovery adapters<br/>NAVER_NEWS / NAVER_STOCK / DAUM_NEWS / GOOGLE_NEWS / BAIDU_NEWS]
-  DA -->|INSERT ON CONFLICT DO NOTHING| AU[(article_url<br/>큐 + 상태)]
+  DA -->|INSERT ON CONFLICT DO NOTHING| AU[(crawl_url<br/>큐 + 상태)]
   AU --> EX[Extraction workers]
   EX --> SINK{{Sink 포트}}
   SINK --> FILE[FileSink .jsonl]
@@ -50,8 +50,8 @@ flowchart LR
 
 ### 3.1 2단계 파이프라인
 
-- **발견(Discovery)**: 입력 `(keyword, source_type)` → 출력은 콘텐츠 URL을 `article_url`에 `status=discovered`로 적재. 소스별 어댑터가 검색·목록 페이지를 스크래핑한다. 본문은 건드리지 않는다.
-- **추출(Extraction)**: `article_url`에서 작업을 점유 → 콘텐츠 페이지를 가져와 제목·본문·메타를 파싱 → 성공 시 Sink에 기록하고 `status=stored`.
+- **발견(Discovery)**: 입력 `(keyword, source_type)` → 출력은 콘텐츠 URL을 `crawl_url`에 `status=discovered`로 적재. 소스별 어댑터가 검색·목록 페이지를 스크래핑한다. 본문은 건드리지 않는다.
+- **추출(Extraction)**: `crawl_url`에서 작업을 점유 → 콘텐츠 페이지를 가져와 제목·본문·메타를 파싱 → 성공 시 Sink에 기록하고 `status=stored`.
 
 두 단계를 분리하는 이유: ① 발견 실패와 추출 실패가 서로 다른 재시도 단위로 격리된다, ② 발견이 적재한 URL은 일부 추출이 실패해도 손실되지 않는다, ③ 수동 재스크랩이 별도 파이프라인 없이 상태 변경만으로 가능해진다.
 
@@ -67,7 +67,7 @@ app/
   extraction/          # 추출 체인: library_chain.py, rule_engine.py, extractor.py
   fetch/               # Fetcher: http_client.py, headless.py, proxy.py, rate_limit.py
   sink/                # Sink 포트 + 구현: base.py, file_sink.py, solr_sink.py(나중)
-  repository/          # RDB 접근: keyword_repo.py, article_url_repo.py, domain_repo.py
+  repository/          # RDB 접근: keyword_repo.py, crawl_url_repo.py, domain_repo.py
   scheduling/          # discovery dispatcher, overlap lock
   worker/              # extraction worker 루프, reaper
   domain_logic/        # URL 정규화, 실패 분류, 백오프 계산
@@ -121,7 +121,7 @@ services:
 
 **권장 형태**: 발견은 소스별로 분리(스크래핑 대상·차단 양상·렌더링 방식이 소스마다 다름), 추출은 공용(추출할 URL의 도메인이 소스와 무관한 경우가 많음). 확장도 병목만 독립적으로 — 네이버 키워드가 많으면 `discover-naver_news`만 replicas를 늘리고(같은 소스 발견자 여러 개는 `SKIP LOCKED`로 키워드를 안 겹치게 나눠 가짐), 추출이 밀리면 `extract`만 늘린다. 소규모일 땐 `--source all` 발견자 하나로 시작해 트래픽이 커지면 소스별로 무중단 분리.
 
-**전제**: 프로세스는 독립이지만 **MySQL과 `article_url` 큐는 공유**한다(데이터 평면은 하나). 소스별로 물리적으로 다른 DB를 쓰는 분리는 이 설계 범위 밖이다.
+**전제**: 프로세스는 독립이지만 **MySQL과 `crawl_url` 큐는 공유**한다(데이터 평면은 하나). 소스별로 물리적으로 다른 DB를 쓰는 분리는 이 설계 범위 밖이다.
 
 ---
 
@@ -131,8 +131,8 @@ services:
 
 ```mermaid
 erDiagram
-  KEYWORD ||--o{ ARTICLE_URL : discovers
-  DOMAIN  ||--o{ ARTICLE_URL : "policy / rules"
+  KEYWORD ||--o{ CRAWL_URL : discovers
+  DOMAIN  ||--o{ CRAWL_URL : "policy / rules"
   KEYWORD {
     bigint id PK
     string keyword
@@ -145,7 +145,7 @@ erDiagram
     int priority
     string disabled_reason
   }
-  ARTICLE_URL {
+  CRAWL_URL {
     bigint id PK
     string url
     string url_hash UK
@@ -184,7 +184,7 @@ erDiagram
 
 **`keyword`** — 작업 원천이자 스케줄 상태. 기존 테이블에 스케줄 컬럼만 확장한다. `interval_seconds`/`next_discover_at`은 지금(하루 1회, cron)에서는 안 써도 두기만 하면 미래에 "키워드별 주기"로 전환할 때 스키마 변경이 없다.
 
-**`article_url`** — 시스템의 심장. 작업 큐 + 상태 기계 + 실패 보관소를 한 테이블로 통합했다. "실패 URL을 따로 보관"하는 요구는 별도 테이블이 아니라 `status` 값으로 흡수된다.
+**`crawl_url`** — 시스템의 심장. 작업 큐 + 상태 기계 + 실패 보관소를 한 테이블로 통합했다. "실패 URL을 따로 보관"하는 요구는 별도 테이블이 아니라 `status` 값으로 흡수된다.
 - `url_hash`에 **UNIQUE 제약** (중복 방지의 관문 — 6절 참고).
 - `status` enum: `discovered`, `extracting`, `stored`, `failed_transient`, `failed_permanent`, `dead`. (`stored`는 성공 종료. 나중에 Solr를 붙이면 의미상 "indexed"에 해당.)
 - 인덱스: `url_hash`(unique), `(status, next_retry_at, priority)`(점유 쿼리용), `host`, `keyword_id`.
@@ -206,7 +206,7 @@ erDiagram
 
 ## 6. 중복 방지 (다른 키워드라도 같은 URL)
 
-중복 제거는 **Sink가 아니라 RDB에서** 한다. 파일은 유니크를 강제할 수 없으므로, `article_url.url_hash` UNIQUE 제약이 유일한 관문이다.
+중복 제거는 **Sink가 아니라 RDB에서** 한다. 파일은 유니크를 강제할 수 없으므로, `crawl_url.url_hash` UNIQUE 제약이 유일한 관문이다.
 
 - 발견 단계에서 URL을 찾으면 어느 키워드에서 왔든 `INSERT ... ON DUPLICATE KEY UPDATE`(또는 `INSERT IGNORE`)로 `url_hash` UNIQUE 키 기준 중복을 흡수한다.
 - 새로 들어가면 추출 대상이 되고, 이미 있으면(다른 키워드가 먼저 넣었거나 과거에 넣었거나) 조용히 무시된다.
@@ -386,7 +386,7 @@ stateDiagram-v2
 
 워커(발견자·추출자)가 멈추거나 죽었을 때 **왜 멈췄는지를 로그만 보고 알 수 있어야** 한다. 이를 위해 두 종류의 실패를 명확히 분리한다.
 
-- **항목(item) 단위 실패** — 개별 URL/키워드의 실패는 DB(`article_url.status`·`last_error_*`)에 기록한다(10절). 한 항목이 실패해도 워커는 다음 항목으로 계속 간다.
+- **항목(item) 단위 실패** — 개별 URL/키워드의 실패는 DB(`crawl_url.status`·`last_error_*`)에 기록한다(10절). 한 항목이 실패해도 워커는 다음 항목으로 계속 간다.
 - **프로세스(worker) 단위 멈춤** — 워커 루프나 프로세스 자체가 멈추거나 죽는 것은 DB가 아니라 **로그로 진단**한다. 이 절의 초점이다.
 
 ### 12.1 로그 스트림 분리
@@ -541,7 +541,7 @@ Traceback (most recent call last):
 
 - **검색 결과 로딩 방식 실측.** 각 소스의 검색 결과를 정적 요청으로 받아 콘텐츠 링크가 HTML에 다 들어있는지 확인한다. 무한 스크롤·"더보기"·동적 로딩이면 정적으로는 일부만 잡힌다. 이 실측이 발견 어댑터를 static으로 짤지 headless로 짤지를 가르며, 무한 스크롤이면 내부 요청 직접 호출 가능 여부(8.5)도 함께 확인한다.
 - **발행일시 정규화 규칙.** 소스 검색 결과의 날짜와 콘텐츠 페이지의 날짜가 다를 수 있고, 타임존·상대표기("3시간 전")가 섞인다. 추출 시 발행일시를 어떤 기준으로 정규화할지 미리 정한다(8절 컷오프 판정의 정확도와 직결).
-- **"본문"의 경계 기준.** 기자명·소속·사진 캡션·관련기사·구독 안내를 본문에 포함할지 제외할지 일관 기준을 정한다(규칙 작성과 라이브러리 보정의 기준이 됨).
+- **"본문"의 경계 기준.** 기자명·소속·사진 캡션·관련콘텐츠·구독 안내를 본문에 포함할지 제외할지 일관 기준을 정한다(규칙 작성과 라이브러리 보정의 기준이 됨).
 - **테스트 픽스처 확보.** 개발 중 실제 소스를 반복 호출하면 그 단계에서 IP가 차단될 수 있다. 검색 결과·콘텐츠 페이지 HTML을 몇 개 저장해두고 파서를 그 위에서 개발하면 네트워크 없이 빠르게 반복하고 차단도 피한다(4단계 전제).
 - **법적·정책 검토.** 포털·언론사 robots.txt와 이용약관, 수집 본문의 보관·활용 범위(사내 분석 vs 외부 노출)에 따라 리스크가 다르다. 기술 결정이 아니라 조직 차원의 합의가 필요한 부분.
 
@@ -558,7 +558,7 @@ Traceback (most recent call last):
 ## 18. 의도적으로 만들지 않은 것 (과분리 방지)
 
 - URL↔키워드 다대다 연결 테이블 — `url_hash` 중복 제거 + 최초 발견 키워드만 기록으로 갈음.
-- 별도 실패 URL 테이블 — `article_url.status`로 흡수.
+- 별도 실패 URL 테이블 — `crawl_url.status`로 흡수.
 - 워커 등록/하트비트 테이블 — `claimed_by`/`claimed_at` + reaper로 갈음.
 - 별도 발견 작업(job)/스케줄 테이블 — `keyword` 행의 컬럼으로 흡수.
 - 설정 테이블 — 환경변수·설정파일로.

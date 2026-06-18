@@ -9,7 +9,7 @@
 #   ./deploy/run.sh <role> <portal> <worker_id>
 #
 # 인자:
-#   role       discovery  — 키워드로 기사 URL 을 수집하는 워커
+#   role       discovery  — 키워드로 콘텐츠 URL 을 수집하는 워커
 #              extraction — 수집된 URL 에서 본문을 추출하는 워커
 #
 #   portal     naver_news | daum_news | google_news | naver_stock | all
