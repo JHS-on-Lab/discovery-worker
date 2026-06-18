@@ -13,7 +13,7 @@
 셀렉터 전략:
   부모 클래스가 sds-comps-base-layout 인 <a href> 를 추출한다.
   sds-comps-* 는 네이버 디자인 시스템(SDS) 클래스로, fender-ui_ 해시보다 안정적이며
-  기사당 정확히 1개의 링크만 선택된다.
+  콘텐츠당 정확히 1개의 링크만 선택된다.
   0개이면 셀렉터 파손으로 간주하고 WARNING 을 남긴다.
 """
 
@@ -91,7 +91,7 @@ class NaverNewsAdapter(PaginatedAdapter):
 
 
 def _parse_urls(html: str) -> list[str]:
-    """sds-comps-base-layout 부모 기반으로 기사 URL 추출. 기사당 정확히 1개 선택."""
+    """sds-comps-base-layout 부모 기반으로 콘텐츠 URL 추출. 콘텐츠당 정확히 1개 선택."""
     tree = HTMLParser(html)
     urls: list[str] = []
 

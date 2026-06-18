@@ -58,7 +58,7 @@ _RULES: list[dict] = [
     },
 
     # ==========================================================================
-    # Daum 뷰어 (제휴 언론사 기사)
+    # Daum 뷰어 (제휴 언론사 콘텐츠)
     # ==========================================================================
 
     {
@@ -67,7 +67,7 @@ _RULES: list[dict] = [
         "crawl_delay_ms": 500,
         "rules_enabled": True,
         "updated_by": "domain-analysis",
-        # div.article_view: 본문만 포함. viewrelate_wrap(관련기사)·저작권 문구 자동 제외.
+        # div.article_view: 본문만 포함. viewrelate_wrap(관련콘텐츠)·저작권 문구 자동 제외.
         "rules_json": {
             "title":    {"css": "h3.tit_view"},
             "body":     {"css": "div.article_view"},
@@ -149,7 +149,7 @@ _RULES: list[dict] = [
         "crawl_delay_ms": 1000,
         "rules_enabled": True,
         "updated_by": "domain-analysis",
-        # Next.js Pages Router — 정적 HTML 의 __NEXT_DATA__ 에 기사 데이터 임베드.
+        # Next.js Pages Router — 정적 HTML 의 __NEXT_DATA__ 에 콘텐츠 데이터 임베드.
         # 본문은 contentArrange 배열에서 type=text 항목의 content 를 이어 붙여 구성.
         "rules_json": {
             "next_data": {

@@ -38,7 +38,7 @@ amp_url 규칙 형식 (최상위에 "amp_url" 키를 두면 이 모드로 동작
 next_data 규칙 형식 (최상위에 "next_data" 키를 두면 이 모드로 동작):
   {
     "next_data": {
-      "root":             "props.pageProps.articleView",  // __NEXT_DATA__ 내 기사 객체 경로
+      "root":             "props.pageProps.articleView",  // __NEXT_DATA__ 내 콘텐츠 객체 경로
       "title":            "title",
       "author":           "author",
       "published_at":     "published_time",               // ISO 8601 자동 파싱
@@ -256,7 +256,7 @@ class RuleEngine:
                 is_permanent=False,
             )
 
-        # root 경로로 기사 객체 이동
+        # root 경로로 콘텐츠 객체 이동
         root_path = spec.get("root", "")
         obj = data
         if root_path:
