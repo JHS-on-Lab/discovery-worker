@@ -149,7 +149,7 @@ def _run_url_mode(args: argparse.Namespace) -> None:
 def _run_db_mode(args: argparse.Namespace) -> None:
     """DB 에서 discovered URL 하나를 꺼내 추출한다."""
     from app.fetch.headless import fetch_by_render_mode
-    from app.repository.article_url_repo import ArticleUrlRepo
+    from app.repository.crawl_url_repo import CrawlUrlRepo
     from app.types import ExtractionFailure, RenderMode
 
     config.validate()
@@ -159,7 +159,7 @@ def _run_db_mode(args: argparse.Namespace) -> None:
      limiter, extractor, sink) = _make_components(args.dry_run)
 
     try:
-        url_repo = ArticleUrlRepo(engine)
+        url_repo = CrawlUrlRepo(engine)
         source_filter = args.source.upper() if args.source else None
         item = url_repo.claim_next(worker_id=args.worker_id, source=source_filter)
 

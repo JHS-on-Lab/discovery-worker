@@ -106,7 +106,7 @@ def _run_keyword_mode(args: argparse.Namespace) -> None:
     """DB 스케줄을 거치지 않고 키워드를 직접 지정해 발견을 실행한다."""
     from sqlalchemy import text
     from app.repository.db import db_context
-    from app.repository.article_url_repo import ArticleUrlRepo
+    from app.repository.crawl_url_repo import CrawlUrlRepo
 
     dry = args.dry_run
 
@@ -138,7 +138,7 @@ def _run_keyword_mode(args: argparse.Namespace) -> None:
         return
 
     with db_context() as engine:
-        ins, skp = ArticleUrlRepo(engine).bulk_insert_discovered(
+        ins, skp = CrawlUrlRepo(engine).bulk_insert_discovered(
             urls, keyword_id=keyword_id, source_type=args.source.upper()
         )
     print(f"DB 저장: inserted={ins} skipped={skp}")
@@ -172,7 +172,7 @@ def _run_db_mode(args: argparse.Namespace) -> None:
     """DB 에서 다음 due 키워드를 꺼내 발견을 실행한다."""
     from app.repository.db import db_context
     from app.repository.keyword_repo import KeywordRepo
-    from app.repository.article_url_repo import ArticleUrlRepo
+    from app.repository.crawl_url_repo import CrawlUrlRepo
     from app.repository.collection_log_repo import CollectionLogRepo, DiscoveryLog
 
     dry = args.dry_run
@@ -200,7 +200,7 @@ def _run_db_mode(args: argparse.Namespace) -> None:
 
         if not dry:
             kw_repo   = KeywordRepo(engine)
-            url_repo  = ArticleUrlRepo(engine)
+            url_repo  = CrawlUrlRepo(engine)
             log_repo  = CollectionLogRepo(engine)
 
         adapter    = _make_adapter(source_type, args.max_pages)

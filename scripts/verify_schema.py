@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import text, inspect
 from app.repository.db import db_context
 
-EXPECTED_TABLES = {"t_keyword", "t_article_url", "t_domain", "t_collection_log", "alembic_version"}
+EXPECTED_TABLES = {"t_keyword", "t_crawl_url", "t_domain", "t_collection_log", "alembic_version"}
 
 EXPECTED_COLUMNS = {
     "t_keyword": {
@@ -19,7 +19,7 @@ EXPECTED_COLUMNS = {
         "next_discover_at", "retry_pending",
         "enabled", "priority", "display_name", "disabled_reason",
     },
-    "t_article_url": {
+    "t_crawl_url": {
         "id", "url", "url_hash", "host", "keyword_id", "source_type",
         "status", "attempt_count", "last_error_code", "last_error_msg",
         "next_retry_at", "claimed_at", "claimed_by", "is_manual", "priority",
@@ -41,9 +41,9 @@ EXPECTED_COLUMNS = {
 }
 
 EXPECTED_INDEXES = {
-    "t_article_url":    {"uq_article_url_hash", "ix_article_url_claim",
-                         "ix_article_url_host", "ix_article_url_keyword",
-                         "ix_article_url_status", "ix_article_url_collected_date"},
+    "t_crawl_url":      {"uq_crawl_url_hash", "ix_crawl_url_claim",
+                         "ix_crawl_url_host", "ix_crawl_url_keyword",
+                         "ix_crawl_url_status", "ix_crawl_url_collected_date"},
     "t_keyword":        {"uq_keyword_portal", "ix_keyword_next_discover_at"},
     "t_collection_log": {"ix_collection_log_date_type", "ix_collection_log_keyword_date"},
 }

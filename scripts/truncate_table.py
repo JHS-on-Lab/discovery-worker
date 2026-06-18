@@ -2,7 +2,7 @@
 테이블 데이터 삭제 스크립트.
 
 실행:
-  python scripts/truncate_table.py --table t_article_url
+  python scripts/truncate_table.py --table t_crawl_url
   python scripts/truncate_table.py --table t_collection_log
   python scripts/truncate_table.py --table t_domain
   python scripts/truncate_table.py --table t_keyword
@@ -18,9 +18,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import text
 from app.repository.db import db_context
 
-# keyword 는 article_url 의 FK 참조 대상이므로 article_url 먼저 비워야 한다.
-_ALLOWED_TABLES = {"t_keyword", "t_article_url", "t_domain", "t_collection_log"}
-_ALL_ORDER = ["t_collection_log", "t_article_url", "t_keyword", "t_domain"]
+# keyword 는 crawl_url 의 FK 참조 대상이므로 crawl_url 먼저 비워야 한다.
+_ALLOWED_TABLES = {"t_keyword", "t_crawl_url", "t_domain", "t_collection_log"}
+_ALL_ORDER = ["t_collection_log", "t_crawl_url", "t_keyword", "t_domain"]
 
 
 def _truncate(engine, tables: list[str]) -> None:
