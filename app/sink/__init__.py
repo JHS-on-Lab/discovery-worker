@@ -26,15 +26,39 @@ def make_sink(engine: Engine) -> Sink:
         solr_url, crawler_type, crawl_runtime_key = _resolve_solr_config(engine)
         return SolrSink(solr_url, crawler_type, crawl_runtime_key)
 
-    # 기본값: file
+    # 기본값: file — runtime 메타가 없으면 빈 문자열로 대체
     from app.sink.file_sink import FileSink
-    _, crawler_type, crawl_runtime_key = _resolve_solr_config(engine)
+    crawler_type, crawl_runtime_key = _resolve_runtime_meta(engine)
     return FileSink(crawler_type, crawl_runtime_key)
+
+
+def _resolve_runtime_meta(engine: Engine) -> tuple[str, str]:
+    """
+    crawler_type, crawl_runtime_key 를 반환한다.
+    Solr 미설정 환경(FileSink 로컬 개발 등)에서는 빈 문자열로 대체한다.
+    반환: (crawler_type, crawl_runtime_key)
+    """
+    hostname = socket.gethostname()
+    runtime_name = config.SOLR_RUNTIME_NAME
+
+    if config.SOLR_DIRECT_ENABLED:
+        key = f"{hostname}_{runtime_name}" if runtime_name else hostname
+        return config.SOLR_CRAWLER_TYPE, key
+
+    if not runtime_name:
+        return "", hostname
+
+    from app.repository.crawl_runtime_repo import CrawlRuntimeRepo
+    info = CrawlRuntimeRepo(engine).get_runtime(runtime_name)
+    if not info:
+        return "", f"{hostname}_{runtime_name}"
+    return info.crawler_type, f"{hostname}_{runtime_name}"
 
 
 def _resolve_solr_config(engine: Engine) -> tuple[str, str, str]:
     """
-    Solr 접속 정보와 런타임 메타를 반환한다.
+    Solr 접속 정보와 런타임 메타를 반환한다. SolrSink 전용.
+    미설정 시 RuntimeError.
     반환: (solr_url, crawler_type, crawl_runtime_key)
     """
     hostname = socket.gethostname()

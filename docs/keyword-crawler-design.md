@@ -41,7 +41,7 @@ flowchart LR
   AU --> EX[Extraction workers]
   EX --> SINK{{Sink 포트}}
   SINK --> FILE[FileSink .jsonl]
-  SINK -. 나중에 .-> SOLR[SolrSink]
+  SINK --> SOLR[SolrSink]
   DA -. uses .-> FET[Fetcher<br/>HTTP · headless · proxy · rate-limit]
   EX -. uses .-> FET
   DOM[(domain<br/>규칙 + 정책)] -. 핫리로드 .-> EX
@@ -88,12 +88,13 @@ class Fetcher(Protocol):
         """static(HTTP) 우선, render='headless'면 브라우저. 프록시·레이트리밋·네트워크 재시도는 내부 처리."""
 
 class Extractor(Protocol):
-    def extract(self, url: str, html: str, host: str) -> Article | ExtractionFailure:
+    def extract(self, url: str, html: str, host: str, source_type: str = "",
+                keyword: str = "", keyword_id: int | None = None) -> CollectedContent | ExtractionFailure:
         """규칙 존재 시 규칙 우선, 없으면 라이브러리 체인. 소스·콘텐츠 타입 무관. 실패 판정 포함."""
 
 class Sink(Protocol):
-    def write(self, article: Article) -> None:
-        """현재 FileSink(.jsonl), 나중에 SolrSink. 콘텐츠 타입 무관, 호출부는 동일."""
+    def write(self, content: CollectedContent) -> None:
+        """FileSink(.jsonl) 또는 SolrSink. 콘텐츠 타입 무관, 호출부는 동일."""
 ```
 
 ### 4.2 실행 모델 — 역할·소스별 독립 실행
@@ -197,10 +198,10 @@ erDiagram
 
 ### 5.2 파일 출력 형식 (초기 Sink)
 
-- **결과 데이터**: JSON Lines(`.jsonl`), append 친화적이고 나중에 Solr bulk import에 그대로 쓸 수 있다.
-- **파티셔닝**: `data/{YYYY-MM-DD}/{portal_type}.jsonl` — 날짜·소스별로 나눠 관리·재적재를 조각 단위로.
+- **결과 데이터**: JSON Lines(`.jsonl`), append 친화적. Solr 스키마와 동일한 필드명을 사용한다.
+- **파티셔닝**: `data/{YYYY-MM-DD}/{source_type}-{worker_id}.jsonl` — 날짜·소스별로 나눠 관리·재적재를 조각 단위로.
 - **운영 로그**: 수집 진행·하트비트·에러는 콘텐츠 데이터와 섞지 않고 별도 로그로 분리한다. 정보 로그와 **전용 에러 로그**를 또 나눈다 — 상세는 12절.
-- Article 레코드 필드(예): `url`, `url_hash`, `source_type`, `keyword`, `title`, `body`, `published_at`, `author`, `collected_at`, `extraction_method`, `body_len`.
+- CollectedContent 저장 필드: `id`(crawl_id), `crawler_type`, `crawl_runtime_key`, `host`, `site`, `url`, `title`, `content`, `author`(배열), `tstamp`(UTC), `doc_version`(1), `keyword_id`(배열), `etc_exact1`("1").
 
 ---
 
@@ -524,7 +525,7 @@ Traceback (most recent call last):
 
 **11. 관리 UI/API.** 규칙 편집·테스트(URL 대입 미리보기)·enable/version/rollback, 실패 재투입, run-now(`next_discover_at=now`), 드리프트 모니터링.
 
-**12. (나중) SolrSink.** `SINK_TYPE=solr`로 전환, `url_hash`를 문서 id로 upsert, 기존 `.jsonl` bulk import.
+**12. SolrSink (완료).** `SINK_TYPE=solr`로 전환. `crawl_id(url)`(lookup3ycs64 기반 16자 hex)를 문서 id로 upsert. FileSink 와 동일한 필드 포맷 사용.
 
 ### 15.3 Claude Code 지시 팁
 

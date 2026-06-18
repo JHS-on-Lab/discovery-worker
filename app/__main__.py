@@ -7,7 +7,7 @@
 
 역할(--role):
   discovery  → 키워드 스케줄을 돌면서 URL 을 수집한다 (dispatcher.py)
-  extraction → 수집된 URL 에서 본문을 추출해 파일로 저장한다 (extraction_worker.py)
+  extraction → 수집된 URL 에서 본문을 추출해 파일 또는 Solr 에 저장한다 (extraction_worker.py)
               + Reaper 를 daemon 스레드로 함께 시작한다
 
 소스(--source):

@@ -5,7 +5,7 @@
   # 특정 URL 추출 테스트 — 파일 미저장, 결과만 출력
   python scripts/run_extraction.py --url "https://finance.naver.com/item/board_read.naver?code=000660&nid=421731371" --dry-run
 
-  # 특정 URL 추출 + 파일 저장
+  # 특정 URL 추출 + 저장 (SINK_TYPE 환경변수에 따라 file/solr)
   python scripts/run_extraction.py --url "https://..." --source NAVER_STOCK --keyword 000660
 
   # DB 에서 discovered URL 하나 꺼내 추출
@@ -37,35 +37,30 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _make_components(dry_run: bool):
+def _make_components(engine, dry_run: bool):
     """추출에 필요한 컴포넌트를 생성해 반환한다."""
     from app.extraction.extractor import DefaultExtractor
     from app.fetch.headless import HeadlessFetcher
     from app.fetch.http_client import HttpFetcher
     from app.fetch.rate_limit import RateLimiter
-    from app.repository.db import db_context
     from app.repository.domain_repo import DomainRepo
     from app.sink import make_sink
-    from app.sink.file_sink import FileSink
-
-    engine_ctx = db_context()
-    engine = engine_ctx.__enter__()
 
     domain_repo = DomainRepo(engine)
     fetcher     = HttpFetcher()
     headless    = HeadlessFetcher()
     limiter     = RateLimiter(domain_repo)
     extractor   = DefaultExtractor(domain_repo=domain_repo)
-    sink        = FileSink() if not dry_run else None
+    sink        = make_sink(engine) if not dry_run else None
 
-    return engine_ctx, engine, domain_repo, fetcher, headless, limiter, extractor, sink
+    return domain_repo, fetcher, headless, limiter, extractor, sink
 
 
 def _run_url_mode(args: argparse.Namespace) -> None:
     """URL 직접 지정 모드."""
     from app.fetch.headless import fetch_by_render_mode
-    from app.types import Article, ExtractionFailure, RenderMode
-    import dataclasses, json
+    from app.types import ExtractionFailure, RenderMode
+    from app.repository.db import db_context
 
     url  = args.url
     host = urlparse(url).netloc
@@ -74,16 +69,18 @@ def _run_url_mode(args: argparse.Namespace) -> None:
     print(f"host   : {host}")
     print(f"source : {args.source or '(미지정)'}")
     print(f"keyword: {args.keyword or '(없음)'}")
-    print(f"mode   : {'dry-run' if args.dry_run else '파일 저장'}\n")
+    print(f"mode   : {'dry-run' if args.dry_run else '저장'}\n")
 
     if not args.dry_run:
         config.validate()
 
-    (engine_ctx, engine,
-     domain_repo, fetcher, headless,
-     limiter, extractor, sink) = _make_components(args.dry_run)
+    engine_ctx = db_context()
+    engine = engine_ctx.__enter__()
 
     try:
+        (domain_repo, fetcher, headless,
+         limiter, extractor, sink) = _make_components(engine, args.dry_run)
+
         domain = domain_repo.get(host)
         render_mode = (domain or {}).get("render_mode", RenderMode.STATIC)
         print(f"render_mode : {render_mode}")
@@ -128,7 +125,6 @@ def _run_url_mode(args: argparse.Namespace) -> None:
         print(f"method      : {result.extraction_method}")
         print(f"title       : {result.title}")
         print(f"author      : {result.author}")
-
         print(f"published_at: {result.published_at}")
         print(f"body_len    : {result.body_len}")
         print(f"body:\n{result.body}")
@@ -139,7 +135,7 @@ def _run_url_mode(args: argparse.Namespace) -> None:
 
         print("\n=== Sink ===")
         sink.write(result)
-        print(f"저장 완료: {config.FILE_SINK_DIR}")
+        print(f"저장 완료")
 
     finally:
         headless.close()
@@ -150,15 +146,18 @@ def _run_db_mode(args: argparse.Namespace) -> None:
     """DB 에서 discovered URL 하나를 꺼내 추출한다."""
     from app.fetch.headless import fetch_by_render_mode
     from app.repository.crawl_url_repo import CrawlUrlRepo
+    from app.repository.db import db_context
     from app.types import ExtractionFailure, RenderMode
 
     config.validate()
 
-    (engine_ctx, engine,
-     domain_repo, fetcher, headless,
-     limiter, extractor, sink) = _make_components(args.dry_run)
+    engine_ctx = db_context()
+    engine = engine_ctx.__enter__()
 
     try:
+        (domain_repo, fetcher, headless,
+         limiter, extractor, sink) = _make_components(engine, args.dry_run)
+
         url_repo = CrawlUrlRepo(engine)
         source_filter = args.source.upper() if args.source else None
         item = url_repo.claim_next(worker_id=args.worker_id, source=source_filter)
@@ -217,7 +216,6 @@ def _run_db_mode(args: argparse.Namespace) -> None:
         print(f"method      : {result.extraction_method}")
         print(f"title       : {result.title}")
         print(f"author      : {result.author}")
-
         print(f"published_at: {result.published_at}")
         print(f"body_len    : {result.body_len}")
         print(f"body:\n{result.body}")

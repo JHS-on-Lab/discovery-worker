@@ -126,7 +126,11 @@ def validate() -> None:
         missing += [k for k in _REQUIRED_TUNNEL if not os.getenv(k)]
 
     if SINK_TYPE == "solr":
-        missing += [k for k in _REQUIRED_SOLR if not os.getenv(k)]
+        if SOLR_DIRECT_ENABLED:
+            if not SOLR_URL:
+                missing.append("SOLR_URL")
+        else:
+            missing += [k for k in _REQUIRED_SOLR if not os.getenv(k)]
 
     if not missing:
         return

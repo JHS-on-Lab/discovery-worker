@@ -1,4 +1,4 @@
-﻿"""
+"""
 포트(Port) 인터페이스 — 설계 문서 4.1절.
 
 모든 구현체는 여기 정의된 Protocol을 만족해야 한다.
@@ -60,6 +60,7 @@ class Extractor(Protocol):
         host: str,
         source_type: str = "",
         keyword: str = "",
+        keyword_id: int | None = None,
     ) -> CollectedContent | ExtractionFailure:
         """
         성공 시 CollectedContent, 실패 시 ExtractionFailure 반환.
@@ -72,10 +73,10 @@ class Extractor(Protocol):
 class Sink(Protocol):
     """
     수집된 콘텐츠 저장소.
-    현재 구현: FileSink(.jsonl). 나중에 SolrSink로 교체 가능.
+    구현체: FileSink(.jsonl), SolrSink.
     호출부 코드는 변경 없이 Sink 인터페이스만 사용한다.
     """
 
     def write(self, content: CollectedContent) -> None:
-        """콘텐츠를 저장한다. SolrSink는 url_hash로 멱등 upsert, FileSink는 append."""
+        """콘텐츠를 저장한다. SolrSink는 crawl_id(url)로 멱등 upsert, FileSink는 append."""
         ...
