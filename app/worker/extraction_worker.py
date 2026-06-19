@@ -145,6 +145,7 @@ def _process_one(
     extra = {
         "phase": "extract", "worker_id": worker_id,
         "host": host, "url_id": str(item_id), "component": "extractor",
+        "keyword_id": str(keyword_id) if keyword_id is not None else "-",
     }
 
     domain = domain_repo.get(host)
