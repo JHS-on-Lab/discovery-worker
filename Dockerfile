@@ -48,6 +48,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ----------------------------------------------------------------
 COPY app/ app/
 COPY .env .
+COPY masking_list.json .
 
 RUN chmod -R o+rX /app
 
