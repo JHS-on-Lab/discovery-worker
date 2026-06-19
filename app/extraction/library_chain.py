@@ -47,7 +47,7 @@ class LibraryChain:
                 is_permanent=False,
             )
 
-        title, body, method = result
+        title, body, method, author = result
 
         if not title:
             return ExtractionFailure(
@@ -75,13 +75,13 @@ class LibraryChain:
             title=title.strip(),
             body=body.strip(),
             published_at=None,
-            author=None,
+            author=author,
             collected_at=datetime.now(KST),
             extraction_method=method,
         )
 
 
-def _try_trafilatura(html: str) -> tuple[str, str, str] | None:
+def _try_trafilatura(html: str) -> tuple[str, str, str, str | None] | None:
     try:
         import trafilatura
         body = trafilatura.extract(
@@ -95,13 +95,14 @@ def _try_trafilatura(html: str) -> tuple[str, str, str] | None:
         if not body:
             return None
         meta = trafilatura.extract_metadata(html)
-        title = (meta.title or "") if meta else ""
-        return title, body, "trafilatura"
+        title  = (meta.title  or "") if meta else ""
+        author = (meta.author or None) if meta else None
+        return title, body, "trafilatura", author
     except Exception:
         return None
 
 
-def _try_readability(html: str) -> tuple[str, str, str] | None:
+def _try_readability(html: str) -> tuple[str, str, str, str | None] | None:
     try:
         from readability import Document
         from selectolax.parser import HTMLParser
@@ -110,6 +111,6 @@ def _try_readability(html: str) -> tuple[str, str, str] | None:
         body = HTMLParser(doc.summary()).text(separator="\n").strip()
         if not body:
             return None
-        return title, body, "readability"
+        return title, body, "readability", None
     except Exception:
         return None
