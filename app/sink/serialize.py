@@ -54,13 +54,15 @@ def to_doc(content: CollectedContent, crawler_type: str, crawl_runtime_key: str)
         body   = content.body
         author = content.author
 
+    url = f"{content.url}#{content.source_type}" if content.source_type else content.url
+
     doc: dict = {
         "id":                crawl_id(content.url),
         "crawler_type":      crawler_type,
         "crawl_runtime_key": crawl_runtime_key,
         "host":              host,
         "site":              host,
-        "url":               content.url,
+        "url":               url,
         "title":             content.title,
         "content":           body,
         "tstamp":            tstamp,
