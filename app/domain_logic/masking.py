@@ -162,7 +162,7 @@ class TextMasker:
         self._patterns = loaded
         self._loaded = True
         _log.info(
-            "마스킹 패턴 로드 완료: JSON %d개 + 내장 %d개",
+            "마스킹 패턴 로드 완료: 정규식 %d개(카드/주민번호/전화/이메일 등) + 동적 %d개(기자명/특파원명)",
             len(loaded), len(_BUILTIN),
         )
         return self
