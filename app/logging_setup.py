@@ -69,8 +69,9 @@ class _ContextFilter(logging.Filter):
 
     # 에러 로그에서 걸러낼 라이브러리 메시지 패턴
     _NOISE = (
-        "discarding data",      # PyMySQL cursor cleanup
+        "discarding data",          # PyMySQL cursor cleanup
         "DBAPI exception",
+        "ruthless removal",         # trafilatura 내부 본문 추출 시도 메시지
     )
 
     def filter(self, record: logging.LogRecord) -> bool:
