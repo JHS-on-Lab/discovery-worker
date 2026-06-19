@@ -59,15 +59,15 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT,  _handle_signal)
 
-    if config.MASKING_ENABLED:
-        from app.sink.serialize import init_masker
-        init_masker()
-
     try:
         if args.role == "discovery":
             from app.scheduling.dispatcher import run_discovery_loop
             run_discovery_loop(source=args.source, worker_id=worker_id)
         else:
+            if config.MASKING_ENABLED:
+                from app.sink.serialize import init_masker
+                init_masker()
+
             from app.worker.extraction_worker import run_extraction_loop
             from app.worker.reaper import run_reaper
 

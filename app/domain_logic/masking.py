@@ -33,6 +33,9 @@ def mask_author(name: str | None) -> str | None:
     """
     if not name:
         return name
+    name = name.strip()
+    if not name:
+        return None
     n = len(name)
     if n == 1:
         return name
@@ -74,7 +77,7 @@ def _make_title_fn(suffix: str) -> Callable[[re.Match], str]:
             return full
         name = parts[0].strip()
         rest = (" " + parts[1].strip()) if len(parts) > 1 else ""
-        return mask_author(name) + rest + f" {suffix}"
+        return (mask_author(name) or name) + rest + f" {suffix}"
 
     return _fn
 
@@ -114,6 +117,8 @@ class TextMasker:
 
     def __init__(self) -> None:
         self._patterns: list[_MaskPattern] = []
+        self._loaded  = False
+        self._warned  = False
 
     def load(self, path: str | Path) -> "TextMasker":
         """
@@ -155,6 +160,7 @@ class TextMasker:
                 _log.warning("마스킹 패턴 '%s' 정규식 오류: %s — 스킵", label, e)
 
         self._patterns = loaded
+        self._loaded = True
         _log.info(
             "마스킹 패턴 로드 완료: JSON %d개 + 내장 %d개",
             len(loaded), len(_BUILTIN),
@@ -163,6 +169,9 @@ class TextMasker:
 
     def mask(self, text: str, label: str = "") -> str:
         """JSON 패턴 → 내장 패턴 순으로 PII 를 마스킹한다."""
+        if not self._loaded and not self._warned:
+            _log.warning("TextMasker.load() 미호출 — JSON 패턴 없이 내장 패턴만 적용됩니다")
+            self._warned = True
         for p in [*self._patterns, *_BUILTIN]:
             new_text, count = p.pattern.subn(p.replace, text)
             if count > 0:

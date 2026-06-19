@@ -33,6 +33,7 @@ from app.types import CollectedContent
 _UTC    = timezone.utc
 _masker = TextMasker()
 
+# app/sink/serialize.py → app/sink/ → app/ → project root
 _MASKING_LIST = Path(__file__).parent.parent.parent / "masking_list.json"
 
 
