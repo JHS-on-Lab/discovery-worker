@@ -129,7 +129,7 @@ def _configure_root(log_dir: Path, log_name: str = "app") -> None:
     root.setLevel(getattr(logging, config.LOG_LEVEL.upper(), logging.INFO))
 
     for lib in ("httpx", "httpcore", "selenium", "undetected_chromedriver", "paramiko",
-                "pymysql", "sqlalchemy.pool", "sqlalchemy.engine"):
+                "pymysql", "sqlalchemy.pool", "sqlalchemy.engine", "trafilatura"):
         logging.getLogger(lib).setLevel(logging.WARNING)
 
     is_discovery = log_name.startswith("discovery")
