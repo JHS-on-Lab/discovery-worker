@@ -38,7 +38,7 @@ from app.repository.db import db_context
 from app.repository.domain_repo import DomainRepo
 from app.sink import make_sink
 from app.ports import Sink
-from app.types import ErrorCode, ExtractionFailure, RenderMode
+from app.types import ErrorCode, ExtractionFailure, RenderMode, SinkUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +203,17 @@ def _process_one(
     # Sink
     try:
         sink.write(result)
+    except SinkUnavailableError as exc:
+        # circuit open — Solr 일시 장애. traceback 없이 warning 만 기록
+        logger.warning(f"sink unavailable url={url}: {exc}", extra=extra)
+        url_repo.mark_failed(
+            item_id,
+            error_code=ErrorCode.UNKNOWN,
+            error_msg=f"sink unavailable: {exc}",
+            is_permanent=False,
+            next_retry_at=next_retry_at(attempt),
+        )
+        return False
     except Exception as exc:
         logger.exception(f"sink write failed url={url}", extra=extra)
         url_repo.mark_failed(

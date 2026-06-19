@@ -102,6 +102,10 @@ class ErrorCode(str, Enum):
     UNKNOWN            = "UNKNOWN"
 
 
+class SinkUnavailableError(Exception):
+    """Sink(Solr 등)가 일시적으로 사용 불가 — circuit open 상태."""
+
+
 @dataclass
 class ExtractionFailure:
     url: str
