@@ -50,7 +50,7 @@ _ERROR_SEC = 5
 def run_extraction_loop(source: str, worker_id: str) -> None:
     """추출 워커 메인 루프. __main__.py 에서 호출."""
     logger.info(
-        "extraction loop started",
+        f"extraction loop started source={source}",
         extra={"phase": "startup", "worker_id": worker_id, "component": "extractor"},
     )
 
