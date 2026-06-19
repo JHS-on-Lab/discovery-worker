@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
 from selectolax.parser import HTMLParser
 
 from app import config
@@ -68,8 +70,15 @@ class DaumNewsAdapter(PaginatedAdapter):
         return DiscoverResult(urls=urls, next_cursor=next_cursor, has_more=has_more)
 
 
+def _drop_f_param(url: str) -> str:
+    """URL 에서 f 파라미터만 제거한다 (?f=o → 언론사 원본 리다이렉트 방지)."""
+    p = urlparse(url)
+    qs = [(k, v) for k, v in parse_qsl(p.query) if k != "f"]
+    return urlunparse(p._replace(query=urlencode(qs)))
+
+
 def _parse_urls(html: str) -> list[str]:
-    """a.tit_main 제목 링크에서 콘텐츠 URL 추출. v.daum 추적 파라미터(?f=o) 제거."""
+    """a.tit_main 제목 링크에서 콘텐츠 URL 추출. v.daum ?f=o 파라미터 제거."""
     tree = HTMLParser(html)
     seen: dict[str, None] = {}
 
@@ -78,7 +87,7 @@ def _parse_urls(html: str) -> list[str]:
         if not href:
             continue
         if "v.daum.net/v/" in href:
-            seen[href.split("?")[0]] = None
+            seen[_drop_f_param(href)] = None
         elif "cp.news.search.daum.net/p/" in href:
             seen[href] = None
 
