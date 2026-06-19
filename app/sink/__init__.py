@@ -9,8 +9,6 @@ Sink 팩토리.
 
 from __future__ import annotations
 
-import socket
-
 from sqlalchemy import Engine
 
 from app import config
@@ -38,21 +36,21 @@ def _resolve_runtime_meta(engine: Engine) -> tuple[str, str]:
     Solr 미설정 환경(FileSink 로컬 개발 등)에서는 빈 문자열로 대체한다.
     반환: (crawler_type, crawl_runtime_key)
     """
-    hostname = socket.gethostname()
+    worker_id    = config.WORKER_ID
     runtime_name = config.SOLR_RUNTIME_NAME
 
     if config.SOLR_DIRECT_ENABLED:
-        key = f"{hostname}_{runtime_name}" if runtime_name else hostname
+        key = f"{worker_id}_{runtime_name}" if runtime_name else worker_id
         return config.SOLR_CRAWLER_TYPE, key
 
     if not runtime_name:
-        return "", hostname
+        return "", worker_id
 
     from app.repository.crawl_runtime_repo import CrawlRuntimeRepo
     info = CrawlRuntimeRepo(engine).get_runtime(runtime_name)
     if not info:
-        return "", f"{hostname}_{runtime_name}"
-    return info.crawler_type, f"{hostname}_{runtime_name}"
+        return "", f"{worker_id}_{runtime_name}"
+    return info.crawler_type, f"{worker_id}_{runtime_name}"
 
 
 def _resolve_solr_config(engine: Engine) -> tuple[str, str, str]:
@@ -61,13 +59,13 @@ def _resolve_solr_config(engine: Engine) -> tuple[str, str, str]:
     미설정 시 RuntimeError.
     반환: (solr_url, crawler_type, crawl_runtime_key)
     """
-    hostname = socket.gethostname()
+    worker_id = config.WORKER_ID
 
     if config.SOLR_DIRECT_ENABLED:
         if not config.SOLR_URL:
             raise RuntimeError("SOLR_DIRECT_ENABLED=true 이지만 SOLR_URL 이 설정되지 않았습니다.")
         runtime_name = config.SOLR_RUNTIME_NAME
-        crawl_runtime_key = f"{hostname}_{runtime_name}" if runtime_name else hostname
+        crawl_runtime_key = f"{worker_id}_{runtime_name}" if runtime_name else worker_id
         return config.SOLR_URL, config.SOLR_CRAWLER_TYPE, crawl_runtime_key
 
     from app.repository.crawl_runtime_repo import CrawlRuntimeRepo
@@ -78,5 +76,5 @@ def _resolve_solr_config(engine: Engine) -> tuple[str, str, str]:
             f"t_crawl_runtime 에서 runtime_name='{runtime_name}' 을 찾을 수 없거나 "
             f"use_yn='N' 입니다."
         )
-    crawl_runtime_key = f"{hostname}_{runtime_name}"
+    crawl_runtime_key = f"{worker_id}_{runtime_name}"
     return info.solr_url, info.crawler_type, crawl_runtime_key
