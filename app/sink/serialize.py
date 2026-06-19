@@ -33,10 +33,12 @@ from app.types import CollectedContent
 _UTC    = timezone.utc
 _masker = TextMasker()
 
+_MASKING_LIST = Path(__file__).parent.parent / "masking_list.json"
 
-def init_masker(path: str | Path | None = None) -> None:
+
+def init_masker() -> None:
     """masking_list.json 로드. __main__.py 에서 워커 기동 시 1회 호출."""
-    _masker.load(path or config.MASKING_LIST_PATH)
+    _masker.load(_MASKING_LIST)
 
 
 def to_doc(content: CollectedContent, crawler_type: str, crawl_runtime_key: str) -> dict:

@@ -92,8 +92,7 @@ SOLR_CONNECT_TIMEOUT_S    = _env_int("SOLR_CONNECT_TIMEOUT_S", 5)   # TCP 연결
 SOLR_READ_TIMEOUT_S       = _env_int("SOLR_READ_TIMEOUT_S", 30)     # 응답 수신 타임아웃
 
 # Masking
-MASKING_ENABLED   = _env_bool("MASKING_ENABLED", True)
-MASKING_LIST_PATH = _env("MASKING_LIST_PATH", str(Path(__file__).parent / "masking_list.json"))
+MASKING_ENABLED = _env_bool("MASKING_ENABLED", True)
 
 # Retry / Backoff
 MAX_ATTEMPTS              = _env_int("MAX_ATTEMPTS", 5)
