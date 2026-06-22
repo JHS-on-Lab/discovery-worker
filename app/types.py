@@ -106,6 +106,10 @@ class SinkUnavailableError(Exception):
     """Sink(Solr 등)가 일시적으로 사용 불가 — circuit open 상태."""
 
 
+class BotBlockedError(Exception):
+    """디스커버리 어댑터가 봇 차단을 감지 — dispatcher 가 단기 재시도로 처리."""
+
+
 @dataclass
 class ExtractionFailure:
     url: str

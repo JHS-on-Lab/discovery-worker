@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 from app import config
 from app.adapters._base import PaginatedAdapter
 from app.fetch._client import make_client
-from app.types import DiscoverResult, SourceType
+from app.types import BotBlockedError, DiscoverResult, SourceType
 
 _log = logging.getLogger(__name__)
 
@@ -75,14 +75,21 @@ class NaverNewsAdapter(PaginatedAdapter):
             resp = client.get(_SEARCH_URL, params=params)
             resp.raise_for_status()
 
-        urls = _parse_urls(resp.text)
+        urls, is_genuine_empty = _parse_urls(resp.text)
 
         if not urls:
-            _log.warning(
-                f"naver_news 0 urls keyword='{keyword}' page={page_num} "
-                f"— bot detection or sds-comps-base-layout change",
-                extra={"component": "adapter"},
-            )
+            if is_genuine_empty:
+                _log.debug(
+                    f"naver_news empty keyword='{keyword}' page={page_num} — 검색 결과 없음",
+                    extra={"component": "adapter"},
+                )
+            else:
+                _log.warning(
+                    f"naver_news blocked keyword='{keyword}' page={page_num} "
+                    f"— bot detection or sds-comps-base-layout change",
+                    extra={"component": "adapter"},
+                )
+                raise BotBlockedError(f"naver_news keyword='{keyword}' page={page_num}")
 
         has_more = len(urls) >= 10 and page_num < self._max_pages
         next_cursor = str(start + 10) if has_more else None
@@ -90,8 +97,13 @@ class NaverNewsAdapter(PaginatedAdapter):
         return DiscoverResult(urls=urls, next_cursor=next_cursor, has_more=has_more)
 
 
-def _parse_urls(html: str) -> list[str]:
-    """sds-comps-base-layout 부모 기반으로 콘텐츠 URL 추출. 콘텐츠당 정확히 1개 선택."""
+def _parse_urls(html: str) -> tuple[list[str], bool]:
+    """sds-comps-base-layout 부모 기반으로 콘텐츠 URL 추출.
+
+    반환: (urls, is_genuine_empty)
+      is_genuine_empty=True  → 네이버가 "검색 결과 없음" 페이지를 정상 반환한 것
+      is_genuine_empty=False → 봇 차단 또는 셀렉터 파손 의심
+    """
     tree = HTMLParser(html)
     urls: list[str] = []
 
@@ -116,4 +128,5 @@ def _parse_urls(html: str) -> list[str]:
 
         urls.append(href)
 
-    return urls
+    is_genuine_empty = (not urls) and bool(tree.css_first("#notfound, [class*='not_found']"))
+    return urls, is_genuine_empty

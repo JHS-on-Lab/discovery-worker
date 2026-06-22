@@ -110,6 +110,21 @@ class CollectionLogRepo:
                 {"kid": keyword_id},
             ).scalar() or 0
 
+    def count_today_naver_blocked(self, keyword_id: int) -> int:
+        """오늘(KST) 해당 키워드의 Naver 봇 차단 횟수를 반환한다."""
+        with self._engine.connect() as conn:
+            return conn.execute(
+                text("""
+                    SELECT COUNT(*)
+                    FROM t_collection_log
+                    WHERE keyword_id  = :kid
+                      AND source_type = 'NAVER_NEWS'
+                      AND error_msg   LIKE 'BotBlockedError%'
+                      AND run_date    = CURDATE()
+                """),
+                {"kid": keyword_id},
+            ).scalar() or 0
+
     def count_today_bot_detect(self, keyword_id: int, source_type: str) -> int:
         """오늘(KST) 해당 키워드의 봇 감지(0건 성공) 횟수를 반환한다."""
         with self._engine.connect() as conn:
