@@ -32,12 +32,14 @@ from app.repository.db import db_context
 from app.repository.keyword_repo import KeywordRepo
 from app.repository.crawl_url_repo import CrawlUrlRepo
 from app.repository.collection_log_repo import CollectionLogRepo, DiscoveryLog
+from app.types import SourceType
 
 logger = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
 
-_MAX_403_RETRIES = 5
+_MAX_403_RETRIES      = 5
+_MAX_BOT_DETECT_RETRIES = 5
 _IDLE_SLEEP_SEC  = 60
 _403_SLEEP_SEC   = 60   # 403 후 다음 키워드 요청 전 IP 레벨 냉각
 _ERROR_SLEEP_SEC = 10   # 그 외 예외 후 빠른 루프 방지
@@ -178,6 +180,22 @@ def _run_one(
             f"inserted={total_ins} skipped={total_skp} duration={duration_ms}ms",
             extra={**extra, "phase": "discover_done"},
         )
+
+        if total_found == 0 and source == SourceType.GOOGLE_NEWS:
+            count = log_repo.count_today_bot_detect(keyword_id, source)
+            if count < _MAX_BOT_DETECT_RETRIES:
+                retry_at = datetime.now(KST) + timedelta(seconds=config.GOOGLE_BOT_DETECT_RETRY_SEC)
+                kw_repo.reschedule(keyword_id, retry_at)
+                logger.warning(
+                    f"google 0 urls keyword='{keyword}' {count+1}/{_MAX_BOT_DETECT_RETRIES} "
+                    f"retry={retry_at.astimezone(KST).strftime('%H:%M')}KST",
+                    extra={**extra, "phase": "discover_done"},
+                )
+            else:
+                logger.warning(
+                    f"google 0 urls keyword='{keyword}' gave_up={_MAX_BOT_DETECT_RETRIES} next=24h",
+                    extra={**extra, "phase": "discover_done"},
+                )
 
     except Exception as exc:
         duration_ms = int((time.monotonic() - started_mono) * 1000)

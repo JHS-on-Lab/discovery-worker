@@ -110,6 +110,22 @@ class CollectionLogRepo:
                 {"kid": keyword_id},
             ).scalar() or 0
 
+    def count_today_bot_detect(self, keyword_id: int, source_type: str) -> int:
+        """오늘(KST) 해당 키워드의 봇 감지(0건 성공) 횟수를 반환한다."""
+        with self._engine.connect() as conn:
+            return conn.execute(
+                text("""
+                    SELECT COUNT(*)
+                    FROM t_collection_log
+                    WHERE keyword_id  = :kid
+                      AND source_type = :source
+                      AND urls_found  = 0
+                      AND error_msg   IS NULL
+                      AND run_date    = CURDATE()
+                """),
+                {"kid": keyword_id, "source": source_type},
+            ).scalar() or 0
+
     def daily_summary(self, run_date: str | None = None) -> list[dict]:
         """일자별 요약. run_date=None이면 오늘(KST)."""
         date = run_date or datetime.now(KST).date().isoformat()
