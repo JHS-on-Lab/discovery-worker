@@ -398,7 +398,7 @@ _RULES: list[dict] = [
         "rules_json": {
             "title":        {"css": "span.headline-title"},
             "body":         {"css": "div#articleBody"},
-            "published_at": {"xpath": "(//div[@id='head-info']//text()[contains(.,'2026.') and string-length() < 20])[1]",
+            "published_at": {"xpath": "(//div[@id='head-info']//text()[contains(.,'.') and contains(.,':') and string-length() < 25])[1]",
                              "date_format": "%Y.%m.%d %H:%M"},
             "min_body_len": 100,
         },

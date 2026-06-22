@@ -225,6 +225,10 @@ python scripts/fix_domain_rule.py \
 `fix_domain_rule.py --save`로 DB에 저장한 규칙은 `seed_domain_rules.py`에도 반영해두어야
 테이블 재초기화 시 사라지지 않는다.
 
+> **주의**: `fix_domain_rule.py --save` 는 `rules_json / rules_enabled / rules_version` 만 저장한다.
+> `render_mode` 와 `crawl_delay_ms` 는 저장하지 않으므로, headless 사이트나 딜레이가 필요한 사이트는
+> 반드시 `seed_domain_rules.py` 에도 해당 값을 추가해 `python scripts/seed_domain_rules.py` 로 적용해야 한다.
+
 ```python
 # seed_domain_rules.py 의 _RULES 리스트에 추가
 {
