@@ -20,6 +20,7 @@ headless 모드는 Google Bot 감지에 걸리므로 headless=False 로 실행.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -135,9 +136,28 @@ class UCGoogleNewsAdapter:
         self._delay_sec = delay_sec
         self._driver = None
 
+    def _ensure_xvfb(self) -> None:
+        """Linux 서버에 디스플레이가 없으면 Xvfb 가상 디스플레이를 시작한다."""
+        if sys.platform == "win32":
+            return
+        if os.environ.get("DISPLAY"):
+            return
+        import subprocess
+        display = ":99"
+        subprocess.Popen(
+            ["Xvfb", display, "-screen", "0", "1280x720x24"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        os.environ["DISPLAY"] = display
+        time.sleep(0.5)
+        _log.info("Xvfb 가상 디스플레이 시작 (DISPLAY=:99)", extra={"component": "adapter"})
+
     def _ensure_driver(self):
         if self._driver is None:
             import undetected_chromedriver as uc
+
+            self._ensure_xvfb()
 
             chrome_binary = _detect_chrome_binary()
             if chrome_binary is None:
