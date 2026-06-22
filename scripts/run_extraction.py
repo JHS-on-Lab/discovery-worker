@@ -85,7 +85,7 @@ def _run_url_mode(args: argparse.Namespace) -> None:
         render_mode = (domain or {}).get("render_mode", RenderMode.STATIC)
         print(f"render_mode : {render_mode}")
         wait_for_selector = None
-        if domain and domain.get("rules_json"):
+        if domain and domain.get("rules_enabled") and domain.get("rules_json"):
             import json as _json
             rules = domain["rules_json"]
             if isinstance(rules, str):
@@ -93,6 +93,8 @@ def _run_url_mode(args: argparse.Namespace) -> None:
             rule_type = next((t for t in ("json_api", "amp_url", "next_data") if t in rules), "css/xpath")
             wait_for_selector = rules.get("headless_wait_for")
             print(f"domain rule : {rule_type}\n")
+        elif domain and domain.get("rules_json") and not domain.get("rules_enabled"):
+            print("domain rule : 있으나 rules_enabled=False → 라이브러리 체인\n")
         else:
             print("domain rule : 없음 (라이브러리 체인)\n")
 

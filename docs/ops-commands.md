@@ -125,8 +125,18 @@ alembic downgrade <revision_id>
 # 스키마 검증 (테이블·컬럼·인덱스 누락 확인)
 python scripts/verify_schema.py
 
-# DB 연결 확인
-python scripts/check_db.py
+# 연결 상태 확인 (DB + Solr + crawl_runtime 전체)
+python scripts/healthcheck.py
+
+# DB 만 확인
+python scripts/healthcheck.py --db
+
+# Solr 만 확인
+python scripts/healthcheck.py --solr
+
+# t_crawl_runtime 전체 목록 / 특정 항목 조회
+python scripts/healthcheck.py --runtime
+python scripts/healthcheck.py --runtime my_runtime_name
 
 # 특정 테이블 데이터 삭제 (확인 프롬프트 있음)
 python scripts/truncate_table.py --table t_crawl_url

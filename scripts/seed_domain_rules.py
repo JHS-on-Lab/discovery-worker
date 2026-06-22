@@ -180,6 +180,23 @@ _RULES: list[dict] = [
         "updated_by": "domain-analysis",
         # NYT 유료 구독 페이월 — 본문 접근 불가
     },
+    {
+        "host": "www.thebell.co.kr",
+        "render_mode": "headless",
+        "crawl_delay_ms": 2000,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        # CSR — JS 실행 후 div#article_main 에 본문 주입. XPath로 script 태그 제외.
+        # 유료 기사는 본문 자리에 페이월 메시지가 짧게 들어와 min_body_len 으로 필터됨.
+        "rules_json": {
+            "headless_wait_for": "div#article_main p",
+            "title":        {"xpath": "//meta[@property='og:title']/@content"},
+            "body":         {"xpath": "//div[@id='article_main']//text()[not(ancestor::script) and normalize-space()]"},
+            "author":       {"css": "div.userBox"},
+            "published_at": {"css": "span.date", "date_format": "%Y-%m-%d %H:%M:%S"},
+            "min_body_len": 100,
+        },
+    },
 
     # ==========================================================================
     # 정적 HTML + CSS 규칙
@@ -224,16 +241,20 @@ _RULES: list[dict] = [
     # ── 조선비즈 (70건) ────────────────────────────────────────────────────────
     {
         "host": "biz.chosun.com",
-        "render_mode": "static",
-        "crawl_delay_ms": 1000,
+        "render_mode": "headless",
+        "crawl_delay_ms": 1500,
         "rules_enabled": True,
         "updated_by": "domain-analysis",
+        # Arc XP Fusion CMS — SSR→CSR 전환 후 정적 fetch 에서 본문 미노출.
+        # headless 렌더링 후 section.article-body 에서 추출.
+        # 날짜: span.inputDate "입력 2026.06.22. 09:31" → XPath substring-after 로 "입력 " 제거.
         "rules_json": {
-            "title":        {"css": "h1.article-header__title, h1[class*='title']"},
-            "body":         {"css": "section.article-body, div.article-body, div[class*='article-body']"},
-            "author":       {"css": "span.article-byline__name"},
-            "published_at": {"css": "time.article-header__time, time[class*='time']",
-                             "date_format": "%Y.%m.%d %H:%M"},
+            "headless_wait_for": "section.article-body",
+            "title":        {"css": "h1.article-header__headline"},
+            "body":         {"css": "section.article-body"},
+            "author":       {"css": "a.article-byline__author"},
+            "published_at": {"xpath": "substring-after(//span[contains(@class,'inputDate')],'입력 ')",
+                             "date_format": "%Y.%m.%d. %H:%M"},
             "min_body_len": 100,
         },
     },
@@ -323,9 +344,94 @@ _RULES: list[dict] = [
         "crawl_delay_ms": 1500,
         "rules_enabled": True,
         "updated_by": "domain-analysis",
+        # 초기 와일드카드 셀렉터가 오매칭 → og:title + div.gmv2c_con01 로 교체 (실측 기반)
         "rules_json": {
-            "title":        {"css": "h1[class*='title'], h2[class*='title'], div.view_tit"},
-            "body":         {"css": "div[class*='article'], div[class*='view_con'], div#article_body"},
+            "title":        {"xpath": "//meta[@property='og:title']/@content"},
+            "body":         {"css": "div.gmv2c_con01"},
+            "min_body_len": 100,
+        },
+    },
+
+    # ── 데이터뉴스 ────────────────────────────────────────────────────────
+    {
+        "host": "www.datanews.co.kr",
+        "render_mode": "static",
+        "crawl_delay_ms": 1000,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        "rules_json": {
+            "title":        {"xpath": "//meta[@property='og:title']/@content"},
+            "body":         {"css": "div#news_body_area"},
+            "published_at": {"css": "span.datetime", "date_format": "%Y.%m.%d %H:%M:%S"},
+            "min_body_len": 100,
+        },
+    },
+
+    # ── 국토일보 ──────────────────────────────────────────────────────────
+    {
+        "host": "www.ikld.kr",
+        "render_mode": "static",
+        "crawl_delay_ms": 1000,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        # 날짜·저자: div.info-text 안 "기자" / "승인 YYYY.MM.DD HH:MM" 텍스트 노드에서 XPath 추출
+        "rules_json": {
+            "title":        {"xpath": "//meta[@property='og:title']/@content"},
+            "body":         {"css": "div#article-view-content-div"},
+            "author":       {"xpath": "normalize-space((//div[contains(@class,'info-text')]//text()[contains(.,'기자')])[1])"},
+            "published_at": {"xpath": "normalize-space(substring-after((//div[contains(@class,'info-text')]//text()[contains(.,'승인')])[1],'승인 '))",
+                             "date_format": "%Y.%m.%d %H:%M"},
+            "min_body_len": 100,
+        },
+    },
+
+    # ── 여성소비자신문 ────────────────────────────────────────────────────
+    {
+        "host": "www.wsobi.com",
+        "render_mode": "static",
+        "crawl_delay_ms": 1000,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        # EUC-KR 인코딩 사이트 — Content-Type 에 charset 선언 없음.
+        # HttpFetcher._decode_response 가 <meta charset=EUC-KR> 감지 후 올바르게 디코딩.
+        # 날짜: div#head-info 안 "승인YYYY.MM.DD HH:MM" 텍스트 노드, XPath 로 날짜만 추출.
+        "rules_json": {
+            "title":        {"css": "span.headline-title"},
+            "body":         {"css": "div#articleBody"},
+            "published_at": {"xpath": "(//div[@id='head-info']//text()[contains(.,'2026.') and string-length() < 20])[1]",
+                             "date_format": "%Y.%m.%d %H:%M"},
+            "min_body_len": 100,
+        },
+    },
+
+    # ── 엑스포츠뉴스 ─────────────────────────────────────────────────────
+    {
+        "host": "www.xportsnews.com",
+        "render_mode": "static",
+        "crawl_delay_ms": 1000,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        # 날짜: div.at_header 내 "기사입력 YYYY.MM.DD HH:MM" 텍스트 노드에서 XPath substring-after 로 추출
+        "rules_json": {
+            "title":        {"css": "h1"},
+            "body":         {"css": "div.news_contents"},
+            "published_at": {"xpath": "substring-after((//text()[contains(.,'기사입력')])[1],'기사입력 ')",
+                             "date_format": "%Y.%m.%d %H:%M"},
+            "min_body_len": 100,
+        },
+    },
+
+    # ── 코리아쉬핑가제트 ──────────────────────────────────────────────────
+    {
+        "host": "www.ksg.co.kr",
+        "render_mode": "static",
+        "crawl_delay_ms": 1000,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        "rules_json": {
+            "title":        {"xpath": "//meta[@property='og:title']/@content"},
+            "body":         {"css": "div#newsContent"},
+            "published_at": {"css": "div.subtit", "date_format": "%Y-%m-%d %H:%M"},
             "min_body_len": 100,
         },
     },
