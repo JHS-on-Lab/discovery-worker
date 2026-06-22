@@ -421,6 +421,25 @@ _RULES: list[dict] = [
         },
     },
 
+    # ── 일간스포츠 (IS+) ──────────────────────────────────────────────────
+    {
+        "host": "isplus.com",
+        "render_mode": "static",
+        "crawl_delay_ms": 1000,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        # 저자: div.journalist_line > p.mr_10 에 "배중현 기자" 형태로 존재
+        # 날짜: div.journalist_date 내 <b>등록</b> 다음 text node "YYYY.MM.DD HH:MM"
+        "rules_json": {
+            "title":        {"css": "p#viewTitle"},
+            "body":         {"css": "div#article_body"},
+            "author":       {"css": "div.journalist_line p.mr_10"},
+            "published_at": {"xpath": "normalize-space(//div[contains(@class,'journalist_date')]//b[normalize-space(.)='등록']/following-sibling::text()[1])",
+                             "date_format": "%Y.%m.%d %H:%M"},
+            "min_body_len": 100,
+        },
+    },
+
     # ── 코리아쉬핑가제트 ──────────────────────────────────────────────────
     {
         "host": "www.ksg.co.kr",
