@@ -44,40 +44,78 @@ _DEFAULT_MAX_PAGES = 5
 _DEFAULT_DELAY_SEC = 1.5
 
 
+_LINUX_CHROME_BINARIES = (
+    "google-chrome", "google-chrome-stable", "google-chrome-unstable",
+    "chromium-browser", "chromium",
+)
+_LINUX_CHROME_PATHS = (
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/snap/bin/chromium",
+)
+
+
+def _detect_chrome_binary() -> str | None:
+    """Chrome 실행 파일의 절대 경로를 반환한다. 못 찾으면 None."""
+    import shutil, os
+
+    if sys.platform == "win32":
+        import winreg
+        keys = [
+            (winreg.HKEY_CURRENT_USER,  r"Software\Google\Chrome\BLBeacon", "version"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Google Chrome", "DisplayVersion"),
+        ]
+        for hive, subkey, val in keys:
+            try:
+                with winreg.OpenKey(hive, subkey) as k:
+                    path, _ = winreg.QueryValueEx(k, "InstallLocation")
+                    candidate = os.path.join(path, "chrome.exe")
+                    if os.path.isfile(candidate):
+                        return candidate
+            except Exception:
+                continue
+        return shutil.which("chrome") or shutil.which("chromium")
+
+    for binary in _LINUX_CHROME_BINARIES:
+        path = shutil.which(binary)
+        if path:
+            return path
+    for path in _LINUX_CHROME_PATHS:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
 def _detect_chrome_major() -> int | None:
     """설치된 Chrome 의 major 버전 반환. 감지 실패 시 None (uc 자동 감지에 위임)."""
     import subprocess, re
 
-    if sys.platform == "win32":
-        keys = [
-            (r"HKCU\Software\Google\Chrome\BLBeacon", "version"),
-            (r"HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Google Chrome", "DisplayVersion"),
-        ]
-        for key, val in keys:
-            try:
-                out = subprocess.check_output(
-                    ["reg", "query", key, "/v", val],
-                    stderr=subprocess.DEVNULL, text=True,
-                )
-                m = re.search(r"(\d+)\.\d+\.\d+", out)
-                if m:
-                    return int(m.group(1))
-            except Exception:
-                continue
-    else:
-        for binary in ("google-chrome", "google-chrome-stable", "chromium-browser", "chromium"):
-            try:
-                out = subprocess.check_output(
-                    [binary, "--version"],
-                    stderr=subprocess.DEVNULL, text=True,
-                )
-                m = re.search(r"(\d+)\.\d+\.\d+", out)
-                if m:
-                    return int(m.group(1))
-            except Exception:
-                continue
+    binary = _detect_chrome_binary()
+    if binary is None:
+        return None
 
-    return None
+    if sys.platform == "win32":
+        # Windows: 레지스트리에서 버전 읽기
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Google\Chrome\BLBeacon") as k:
+                version, _ = winreg.QueryValueEx(k, "version")
+                m = re.match(r"(\d+)", version)
+                return int(m.group(1)) if m else None
+        except Exception:
+            pass
+
+    try:
+        out = subprocess.check_output(
+            [binary, "--version"],
+            stderr=subprocess.DEVNULL, text=True,
+        )
+        m = re.search(r"(\d+)\.\d+\.\d+", out)
+        return int(m.group(1)) if m else None
+    except Exception:
+        return None
 
 
 class UCGoogleNewsAdapter:
@@ -100,7 +138,16 @@ class UCGoogleNewsAdapter:
     def _ensure_driver(self):
         if self._driver is None:
             import undetected_chromedriver as uc
+
+            chrome_binary = _detect_chrome_binary()
+            if chrome_binary is None:
+                raise RuntimeError(
+                    "Chrome 바이너리를 찾을 수 없습니다. "
+                    "google-chrome 또는 chromium 을 설치하세요."
+                )
+
             opts = uc.ChromeOptions()
+            opts.binary_location = chrome_binary
             opts.add_argument("--lang=ko-KR,ko")
             opts.add_argument("--no-sandbox")
             opts.add_argument("--disable-dev-shm-usage")
