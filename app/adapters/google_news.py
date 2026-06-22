@@ -29,7 +29,7 @@ from urllib.parse import urlparse, parse_qs, urlencode
 from xml.etree import ElementTree as ET
 
 from app import config
-from app.types import DiscoverResult, SourceType
+from app.types import BotBlockedError, DiscoverResult, SourceType
 
 _log = logging.getLogger(__name__)
 
@@ -216,10 +216,10 @@ class UCGoogleNewsAdapter:
 
         if not urls:
             _log.warning(
-                f"google 0 urls keyword='{keyword}' page={page} "
-                f"— bot detection or page structure change",
+                f"google blocked keyword='{keyword}' page={page} — bot detection or page structure change",
                 extra={"component": "adapter"},
             )
+            raise BotBlockedError(f"google_news keyword='{keyword}' page={page}")
 
         has_more = len(urls) >= 8 and page < self._max_pages
         next_cursor = str(page + 1) if has_more else None

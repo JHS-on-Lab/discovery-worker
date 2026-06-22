@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import logging
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from selectolax.parser import HTMLParser
@@ -22,7 +23,9 @@ from selectolax.parser import HTMLParser
 from app import config
 from app.adapters._base import PaginatedAdapter
 from app.fetch._client import make_client
-from app.types import DiscoverResult, SourceType
+from app.types import BotBlockedError, DiscoverResult, SourceType
+
+_log = logging.getLogger(__name__)
 
 _SEARCH_URL = "https://search.daum.net/search"
 
@@ -63,7 +66,15 @@ class DaumNewsAdapter(PaginatedAdapter):
             resp = client.get(_SEARCH_URL, params=params)
             resp.raise_for_status()
 
-        urls = _parse_urls(resp.text)
+        urls, is_genuine_empty = _parse_urls(resp.text)
+
+        if not urls and not is_genuine_empty:
+            _log.warning(
+                f"daum blocked keyword='{keyword}' page={page} — bot detection or tit_main change",
+                extra={"component": "adapter"},
+            )
+            raise BotBlockedError(f"daum_news keyword='{keyword}' page={page}")
+
         has_more    = len(urls) >= 10 and page < self._max_pages
         next_cursor = str(page + 1) if has_more else None
 
@@ -77,8 +88,13 @@ def _drop_f_param(url: str) -> str:
     return urlunparse(p._replace(query=urlencode(qs)))
 
 
-def _parse_urls(html: str) -> list[str]:
-    """a.tit_main 제목 링크에서 콘텐츠 URL 추출. v.daum ?f=o 파라미터 제거."""
+def _parse_urls(html: str) -> tuple[list[str], bool]:
+    """a.tit_main 제목 링크에서 콘텐츠 URL 추출. v.daum ?f=o 파라미터 제거.
+
+    반환: (urls, is_genuine_empty)
+      is_genuine_empty=True  → 다음이 "검색 결과 없음" 페이지를 정상 반환한 것
+      is_genuine_empty=False → 봇 차단 또는 셀렉터 파손 의심
+    """
     tree = HTMLParser(html)
     seen: dict[str, None] = {}
 
@@ -91,4 +107,6 @@ def _parse_urls(html: str) -> list[str]:
         elif "cp.news.search.daum.net/p/" in href:
             seen[href] = None
 
-    return list(seen)
+    urls = list(seen)
+    is_genuine_empty = (not urls) and bool(tree.css_first("p.desc_info"))
+    return urls, is_genuine_empty

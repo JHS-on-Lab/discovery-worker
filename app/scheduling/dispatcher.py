@@ -32,7 +32,7 @@ from app.repository.db import db_context
 from app.repository.keyword_repo import KeywordRepo
 from app.repository.crawl_url_repo import CrawlUrlRepo
 from app.repository.collection_log_repo import CollectionLogRepo, DiscoveryLog
-from app.types import BotBlockedError, SourceType
+from app.types import BotBlockedError
 
 logger = logging.getLogger(__name__)
 
@@ -181,27 +181,11 @@ def _run_one(
             extra={**extra, "phase": "discover_done"},
         )
 
-        if total_found == 0 and source == SourceType.GOOGLE_NEWS:
-            count = log_repo.count_today_bot_detect(keyword_id, source)
-            if count < _MAX_BOT_DETECT_RETRIES:
-                retry_at = datetime.now(KST) + timedelta(seconds=config.GOOGLE_BOT_DETECT_RETRY_SEC)
-                kw_repo.reschedule(keyword_id, retry_at)
-                logger.warning(
-                    f"google 0 urls keyword='{keyword}' {count}/{_MAX_BOT_DETECT_RETRIES} "
-                    f"retry={retry_at.astimezone(KST).strftime('%H:%M')}KST",
-                    extra={**extra, "phase": "discover_done"},
-                )
-            else:
-                logger.warning(
-                    f"google 0 urls keyword='{keyword}' gave_up={_MAX_BOT_DETECT_RETRIES} next=24h",
-                    extra={**extra, "phase": "discover_done"},
-                )
-
     except Exception as exc:
         duration_ms = int((time.monotonic() - started_mono) * 1000)
         error_msg   = f"{type(exc).__name__}: {exc}"
-        is_403           = isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 403
-        is_naver_blocked = isinstance(exc, BotBlockedError)
+        is_403         = isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 403
+        is_bot_blocked = isinstance(exc, BotBlockedError)
 
         if is_403:
             count    = log_repo.count_today_403(keyword_id)
@@ -217,18 +201,18 @@ def _run_one(
                     f"403 '{keyword}' cursor={cursor} gave_up={_MAX_403_RETRIES} next=24h",
                     extra={**extra, "phase": "discover_error"},
                 )
-        elif is_naver_blocked:
-            count    = log_repo.count_today_naver_blocked(keyword_id)
-            retry_at = datetime.now(KST) + timedelta(seconds=config.NAVER_BOT_DETECT_RETRY_SEC)
+        elif is_bot_blocked:
+            count    = log_repo.count_today_bot_blocked(keyword_id)
+            retry_at = datetime.now(KST) + timedelta(seconds=config.BOT_DETECT_RETRY_SEC)
             if count < _MAX_BOT_DETECT_RETRIES:
                 kw_repo.reschedule(keyword_id, retry_at)
                 logger.warning(
-                    f"naver blocked '{keyword}' {count+1}/{_MAX_BOT_DETECT_RETRIES} retry={retry_at.astimezone(KST).strftime('%H:%M')}KST",
+                    f"bot blocked '{keyword}' {count+1}/{_MAX_BOT_DETECT_RETRIES} retry={retry_at.astimezone(KST).strftime('%H:%M')}KST",
                     extra={**extra, "phase": "discover_error"},
                 )
             else:
                 logger.warning(
-                    f"naver blocked '{keyword}' gave_up={_MAX_BOT_DETECT_RETRIES} next=24h",
+                    f"bot blocked '{keyword}' gave_up={_MAX_BOT_DETECT_RETRIES} next=24h",
                     extra={**extra, "phase": "discover_error"},
                 )
         else:
