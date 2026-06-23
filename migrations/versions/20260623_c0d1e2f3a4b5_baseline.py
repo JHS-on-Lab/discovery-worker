@@ -45,7 +45,7 @@ def upgrade() -> None:
         mysql_charset='utf8mb4',
         mysql_collate='utf8mb4_unicode_ci',
     )
-    op.create_index('ix_t_keyword_next_discover_at', 't_keyword', ['next_discover_at'])
+    op.create_index('ix_keyword_next_discover_at', 't_keyword', ['next_discover_at'])
 
     op.create_table(
         't_crawl_url',
