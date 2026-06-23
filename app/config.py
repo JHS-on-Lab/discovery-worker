@@ -108,6 +108,8 @@ RULES_CACHE_TTL_SECONDS = _env_int("RULES_CACHE_TTL_SECONDS", 60)
 # Logging
 LOG_LEVEL                  = _env("LOG_LEVEL", "INFO")
 LOG_ROTATION               = _env("LOG_ROTATION", "daily")
+LOG_RETAIN_DAYS            = _env_int("LOG_RETAIN_DAYS", 30)   # daily 모드: 보관 일수
+LOG_BACKUP_COUNT           = _env_int("LOG_BACKUP_COUNT", 10)  # size 모드: 보관 파일 수
 HEARTBEAT_INTERVAL_SECONDS = _env_int("HEARTBEAT_INTERVAL_SECONDS", 60)
 
 
