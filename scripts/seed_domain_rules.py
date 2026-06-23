@@ -483,6 +483,26 @@ _RULES: list[dict] = [
         },
     },
 
+    # ── 프라임경제 (뉴스프라임) ────────────────────────────────────────────────
+    {
+        "host": "www.newsprime.co.kr",
+        "render_mode": "static",
+        "crawl_delay_ms": 1000,
+        "rules_enabled": True,
+        "updated_by": "domain-analysis",
+        # 날짜: div.arvdate 마지막 텍스트 노드 = "  |\n<date>" — XPath substring-after 로 파이프 이후만 추출
+        "rules_json": {
+            "title":        {"css": "div.viewsubject h2.title"},
+            "body":         {"css": "div#news_body_area"},
+            "author":       {"css": "div.arvdate a span"},
+            "published_at": {
+                "xpath": "normalize-space(substring-after(//div[@class='arvdate']/text()[last()], '|'))",
+                "date_format": "%Y.%m.%d %H:%M:%S",
+            },
+            "min_body_len": 200,
+        },
+    },
+
     # ==========================================================================
     # 소량 실패 (5건 이하) — CSS 규칙 없이 crawl_delay + static 으로 재시도 유도
     # 규칙 추가 전 실제 HTML 구조 확인 후 업데이트 권장
