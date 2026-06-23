@@ -171,11 +171,14 @@ class UCGoogleNewsAdapter:
             opts.add_argument("--lang=ko-KR,ko")
             opts.add_argument("--no-sandbox")
             opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-software-rasterizer")
             if sys.platform == "win32":
                 opts.add_argument("--window-position=-32000,-32000")
             self._driver = uc.Chrome(
                 options=opts,
                 headless=False,
+                use_subprocess=True,
                 version_main=_detect_chrome_major(),
             )
         return self._driver
