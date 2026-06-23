@@ -4,7 +4,7 @@ ix_t_keyword_next_discover_at → ix_keyword_next_discover_at
 다른 인덱스 네이밍 규칙(t_ 접두사 없음)에 맞게 수정.
 
 Revision ID: e2f3a4b5c6d7
-Revises: d1e2f3a4b5c6
+Revises: c0d1e2f3a4b5
 Create Date: 2026-06-23
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy import text
 
 revision: str = 'e2f3a4b5c6d7'
-down_revision: Union[str, None] = 'd1e2f3a4b5c6'
+down_revision: Union[str, None] = 'c0d1e2f3a4b5'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
