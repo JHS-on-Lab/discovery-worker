@@ -74,74 +74,69 @@ def _run_url_mode(args: argparse.Namespace) -> None:
     if not args.dry_run:
         config.validate()
 
-    engine_ctx = db_context()
-    engine = engine_ctx.__enter__()
-
-    try:
+    with db_context() as engine:
         (domain_repo, fetcher, headless,
          limiter, extractor, sink) = _make_components(engine, args.dry_run)
+        try:
+            domain = domain_repo.get(host)
+            render_mode = (domain or {}).get("render_mode", RenderMode.STATIC)
+            print(f"render_mode : {render_mode}")
+            wait_for_selector = None
+            if domain and domain.get("rules_enabled") and domain.get("rules_json"):
+                import json as _json
+                rules = domain["rules_json"]
+                if isinstance(rules, str):
+                    rules = _json.loads(rules)
+                rule_type = next((t for t in ("json_api", "amp_url", "next_data") if t in rules), "css/xpath")
+                wait_for_selector = rules.get("headless_wait_for")
+                print(f"domain rule : {rule_type}\n")
+            elif domain and domain.get("rules_json") and not domain.get("rules_enabled"):
+                print("domain rule : 있으나 rules_enabled=False → 라이브러리 체인\n")
+            else:
+                print("domain rule : 없음 (라이브러리 체인)\n")
 
-        domain = domain_repo.get(host)
-        render_mode = (domain or {}).get("render_mode", RenderMode.STATIC)
-        print(f"render_mode : {render_mode}")
-        wait_for_selector = None
-        if domain and domain.get("rules_enabled") and domain.get("rules_json"):
-            import json as _json
-            rules = domain["rules_json"]
-            if isinstance(rules, str):
-                rules = _json.loads(rules)
-            rule_type = next((t for t in ("json_api", "amp_url", "next_data") if t in rules), "css/xpath")
-            wait_for_selector = rules.get("headless_wait_for")
-            print(f"domain rule : {rule_type}\n")
-        elif domain and domain.get("rules_json") and not domain.get("rules_enabled"):
-            print("domain rule : 있으나 rules_enabled=False → 라이브러리 체인\n")
-        else:
-            print("domain rule : 없음 (라이브러리 체인)\n")
+            limiter.wait(host)
 
-        limiter.wait(host)
+            print("=== Fetch ===")
+            fr = fetch_by_render_mode(url, render_mode, fetcher, headless,
+                                      wait_for_selector=wait_for_selector)
+            print(f"status : {fr.status_code}")
+            print(f"html   : {len(fr.html):,} bytes\n")
 
-        print("=== Fetch ===")
-        fr = fetch_by_render_mode(url, render_mode, fetcher, headless,
-                                  wait_for_selector=wait_for_selector)
-        print(f"status : {fr.status_code}")
-        print(f"html   : {len(fr.html):,} bytes\n")
+            if fr.status_code >= 400:
+                print(f"오류: HTTP {fr.status_code}")
+                return
 
-        if fr.status_code >= 400:
-            print(f"오류: HTTP {fr.status_code}")
-            return
+            print("=== Extract ===")
+            result = extractor.extract(
+                url=fr.url,
+                html=fr.html,
+                host=host,
+                source_type=args.source or "",
+                keyword=args.keyword,
+            )
 
-        print("=== Extract ===")
-        result = extractor.extract(
-            url=fr.url,
-            html=fr.html,
-            host=host,
-            source_type=args.source or "",
-            keyword=args.keyword,
-        )
+            if isinstance(result, ExtractionFailure):
+                print(f"실패: [{result.error_code.value}] {result.error_msg}")
+                print(f"      permanent={result.is_permanent}")
+                return
 
-        if isinstance(result, ExtractionFailure):
-            print(f"실패: [{result.error_code.value}] {result.error_msg}")
-            print(f"      permanent={result.is_permanent}")
-            return
+            print(f"method      : {result.extraction_method}")
+            print(f"title       : {result.title}")
+            print(f"author      : {result.author}")
+            print(f"published_at: {result.published_at}")
+            print(f"body_len    : {result.body_len}")
+            print(f"body:\n{result.body}")
 
-        print(f"method      : {result.extraction_method}")
-        print(f"title       : {result.title}")
-        print(f"author      : {result.author}")
-        print(f"published_at: {result.published_at}")
-        print(f"body_len    : {result.body_len}")
-        print(f"body:\n{result.body}")
+            if args.dry_run:
+                print("\n(dry-run — 파일 미저장)")
+                return
 
-        if args.dry_run:
-            print("\n(dry-run — 파일 미저장)")
-            return
-
-        print("\n=== Sink ===")
-        sink.write(result)
-        print(f"저장 완료")
-
-    finally:
-        headless.close()
-        engine_ctx.__exit__(None, None, None)
+            print("\n=== Sink ===")
+            sink.write(result)
+            print("저장 완료")
+        finally:
+            headless.close()
 
 
 def _run_db_mode(args: argparse.Namespace) -> None:
@@ -153,88 +148,83 @@ def _run_db_mode(args: argparse.Namespace) -> None:
 
     config.validate()
 
-    engine_ctx = db_context()
-    engine = engine_ctx.__enter__()
-
-    try:
+    with db_context() as engine:
         (domain_repo, fetcher, headless,
          limiter, extractor, sink) = _make_components(engine, args.dry_run)
-
-        url_repo = CrawlUrlRepo(engine)
-        source_filter = args.source.upper() if args.source else None
-        item = url_repo.claim_next(worker_id=args.worker_id, source=source_filter)
-
-        if item is None:
-            print(f"처리할 discovered URL 없음 (source={args.source or 'all'})")
-            return
-
-        url     = item["url"]
-        host    = item["host"]
-        source  = item["source_type"]
-        keyword = item.get("keyword", "")
-
-        print(f"URL    : {url}")
-        print(f"host   : {host}")
-        print(f"source : {source}")
-        print(f"id     : {item['id']}\n")
-
-        domain = domain_repo.get(host)
-        render_mode = (domain or {}).get("render_mode", RenderMode.STATIC)
-
-        limiter.wait(host)
-
-        print("=== Fetch ===")
         try:
-            fr = fetch_by_render_mode(url, render_mode, fetcher, headless)
-        except Exception as exc:
-            print(f"fetch 오류: {exc}")
-            from app.types import ErrorCode
-            url_repo.mark_failed(item["id"], error_code=ErrorCode.UNKNOWN,
-                                 error_msg=str(exc), is_permanent=False,
-                                 next_retry_at=None)
-            return
+            url_repo = CrawlUrlRepo(engine)
+            source_filter = args.source.upper() if args.source else None
+            item = url_repo.claim_next(worker_id=args.worker_id, source=source_filter)
 
-        print(f"status : {fr.status_code}")
-        print(f"html   : {len(fr.html):,} bytes\n")
+            if item is None:
+                print(f"처리할 discovered URL 없음 (source={args.source or 'all'})")
+                return
 
-        if fr.status_code >= 400:
-            print(f"오류: HTTP {fr.status_code}")
-            return
+            url     = item["url"]
+            host    = item["host"]
+            source  = item["source_type"]
+            keyword = item.get("keyword", "")
 
-        print("=== Extract ===")
-        result = extractor.extract(
-            url=fr.url, html=fr.html, host=host,
-            source_type=source, keyword=keyword,
-        )
+            print(f"URL    : {url}")
+            print(f"host   : {host}")
+            print(f"source : {source}")
+            print(f"id     : {item['id']}\n")
 
-        if isinstance(result, ExtractionFailure):
-            print(f"실패: [{result.error_code.value}] {result.error_msg}")
-            url_repo.mark_failed(item["id"], error_code=result.error_code,
-                                 error_msg=result.error_msg,
-                                 is_permanent=result.is_permanent,
-                                 next_retry_at=None)
-            return
+            domain = domain_repo.get(host)
+            render_mode = (domain or {}).get("render_mode", RenderMode.STATIC)
 
-        print(f"method      : {result.extraction_method}")
-        print(f"title       : {result.title}")
-        print(f"author      : {result.author}")
-        print(f"published_at: {result.published_at}")
-        print(f"body_len    : {result.body_len}")
-        print(f"body:\n{result.body}")
+            limiter.wait(host)
 
-        if args.dry_run:
-            print("\n(dry-run — 파일 미저장, DB 상태 미변경)")
-            return
+            print("=== Fetch ===")
+            try:
+                fr = fetch_by_render_mode(url, render_mode, fetcher, headless)
+            except Exception as exc:
+                print(f"fetch 오류: {exc}")
+                from app.types import ErrorCode
+                url_repo.mark_failed(item["id"], error_code=ErrorCode.UNKNOWN,
+                                     error_msg=str(exc), is_permanent=False,
+                                     next_retry_at=None)
+                return
 
-        print("\n=== Sink ===")
-        sink.write(result)
-        url_repo.mark_stored(item["id"], extraction_method=result.extraction_method)
-        domain_repo.upsert_health(host, success=True, body_len=result.body_len)
-        print("저장 완료.")
+            print(f"status : {fr.status_code}")
+            print(f"html   : {len(fr.html):,} bytes\n")
 
-    finally:
-        headless.close()
-        engine_ctx.__exit__(None, None, None)
+            if fr.status_code >= 400:
+                print(f"오류: HTTP {fr.status_code}")
+                return
+
+            print("=== Extract ===")
+            result = extractor.extract(
+                url=fr.url, html=fr.html, host=host,
+                source_type=source, keyword=keyword,
+            )
+
+            if isinstance(result, ExtractionFailure):
+                print(f"실패: [{result.error_code.value}] {result.error_msg}")
+                url_repo.mark_failed(item["id"], error_code=result.error_code,
+                                     error_msg=result.error_msg,
+                                     is_permanent=result.is_permanent,
+                                     next_retry_at=None)
+                return
+
+            print(f"method      : {result.extraction_method}")
+            print(f"title       : {result.title}")
+            print(f"author      : {result.author}")
+            print(f"published_at: {result.published_at}")
+            print(f"body_len    : {result.body_len}")
+            print(f"body:\n{result.body}")
+
+            if args.dry_run:
+                print("\n(dry-run — 파일 미저장, DB 상태 미변경)")
+                return
+
+            print("\n=== Sink ===")
+            sink.write(result)
+            url_repo.mark_stored(item["id"], extraction_method=result.extraction_method)
+            domain_repo.upsert_health(host, success=True, body_len=result.body_len)
+            print("저장 완료.")
+        finally:
+            headless.close()
 
 
 def main() -> None:
