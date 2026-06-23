@@ -71,8 +71,8 @@ app/
   scheduling/          # discovery dispatcher, overlap lock
   worker/              # extraction worker 루프, reaper
   domain_logic/        # URL 정규화, 실패 분류, 백오프 계산
-  admin/               # 관리 API/UI (규칙 편집·테스트·재투입·run-now·모니터링)
   config.py            # 환경변수/설정파일 로딩
+# 관리 UI/API 는 별도 프로젝트 crawler-admin 으로 분리 운영
 ```
 
 ### 4.1 핵심 포트(인터페이스)
@@ -137,7 +137,7 @@ erDiagram
   KEYWORD {
     bigint id PK
     string keyword
-    string portal_type
+    string source_type
     string display_name
     int interval_seconds
     timestamp next_discover_at
@@ -152,7 +152,7 @@ erDiagram
     string url_hash UK
     string host
     bigint keyword_id FK
-    string portal_type
+    string source_type
     string status
     int attempt_count
     string last_error_code
@@ -160,7 +160,7 @@ erDiagram
     timestamp next_retry_at
     timestamp claimed_at
     string claimed_by
-    bool manual
+    bool is_manual
     int priority
     string extraction_method
     timestamp created_at
@@ -523,7 +523,7 @@ Traceback (most recent call last):
 
 **10. 헤드리스 폴백.** Playwright 통합(구글·바이두). 컨테이너 이미지에 브라우저 바이너리·한글/중문 폰트 포함 주의.
 
-**11. 관리 UI/API.** 규칙 편집·테스트(URL 대입 미리보기)·enable/version/rollback, 실패 재투입, run-now(`next_discover_at=now`), 드리프트 모니터링.
+**11. 관리 UI/API.** 별도 프로젝트 `crawler-admin`(FastAPI + Jinja2)으로 구현. 규칙 편집·테스트(URL 대입 미리보기)·enable/version/rollback, 실패 재투입, run-now(`next_discover_at=now`), 드리프트 모니터링.
 
 **12. SolrSink (완료).** `SINK_TYPE=solr`로 전환. `crawl_id(url)`(lookup3ycs64 기반 16자 hex)를 문서 id로 upsert. FileSink 와 동일한 필드 포맷 사용.
 
