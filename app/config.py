@@ -74,36 +74,12 @@ GOOGLE_MAX_PAGES      = _env_int("GOOGLE_MAX_PAGES",       5)
 BAIDU_MAX_PAGES       = _env_int("BAIDU_MAX_PAGES",        5)
 NAVER_STOCK_MAX_PAGES = _env_int("NAVER_STOCK_MAX_PAGES",  5)
 
-# Sink
-SINK_TYPE       = _env("SINK_TYPE", "file")   # file | solr
-FILE_SINK_DIR   = _env("FILE_SINK_DIR", "./output")
+# Log / Output
 LOG_DIR         = _env("LOG_DIR", "./logs")
 
-# Solr (SINK_TYPE=solr 일 때만 필요)
-# [직접 모드] SOLR_DIRECT_ENABLED=true → SOLR_URL 로 직접 접속
-# [DB 조회 모드] SOLR_DIRECT_ENABLED=false → SOLR_RUNTIME_NAME 으로 t_crawl_runtime 조회
-SOLR_DIRECT_ENABLED   = _env_bool("SOLR_DIRECT_ENABLED")
-SOLR_URL              = _env("SOLR_URL", "")
-SOLR_RUNTIME_NAME     = _env("SOLR_RUNTIME_NAME", "")  # t_crawl_runtime.runtime_name
-SOLR_CRAWLER_TYPE     = _env("SOLR_CRAWLER_TYPE", "")  # SOLR_DIRECT_ENABLED=true 일 때 사용
-SOLR_BATCH_SIZE           = _env_int("SOLR_BATCH_SIZE", 100)
-SOLR_COMMIT_WITHIN_MS     = _env_int("SOLR_COMMIT_WITHIN_MS", 5000)
-SOLR_CONNECT_TIMEOUT_S    = _env_int("SOLR_CONNECT_TIMEOUT_S", 5)   # TCP 연결 타임아웃
-SOLR_READ_TIMEOUT_S       = _env_int("SOLR_READ_TIMEOUT_S", 30)     # 응답 수신 타임아웃
-
-# Masking
-MASKING_ENABLED = _env_bool("MASKING_ENABLED", True)
-
-# Retry / Backoff
-MAX_ATTEMPTS              = _env_int("MAX_ATTEMPTS", 5)
-BACKOFF_BASE_SECONDS      = _env_int("BACKOFF_BASE_SECONDS", 30)
-BACKOFF_MAX_SECONDS       = _env_int("BACKOFF_MAX_SECONDS", 3600)
-CLAIM_TIMEOUT_SECONDS     = _env_int("CLAIM_TIMEOUT_SECONDS", 300)
+# Discovery retry / reschedule
 DISCOVERY_403_RESCHEDULE_SEC = _env_int("DISCOVERY_403_RESCHEDULE_SEC", 1800)
 BOT_DETECT_RETRY_SEC         = _env_int("BOT_DETECT_RETRY_SEC",         1800)
-
-# Rules cache
-RULES_CACHE_TTL_SECONDS = _env_int("RULES_CACHE_TTL_SECONDS", 60)
 
 # Logging
 LOG_LEVEL                  = _env("LOG_LEVEL", "INFO")
@@ -119,7 +95,6 @@ HEARTBEAT_INTERVAL_SECONDS = _env_int("HEARTBEAT_INTERVAL_SECONDS", 60)
 
 _REQUIRED_ALWAYS = ["RDS_HOST", "RDS_USER", "RDS_PASSWORD", "RDS_DB"]
 _REQUIRED_TUNNEL = ["TUNNEL_SSH_HOST", "TUNNEL_SSH_KEY_PATH"]
-_REQUIRED_SOLR   = ["SOLR_RUNTIME_NAME"]
 
 
 def validate() -> None:
@@ -132,13 +107,6 @@ def validate() -> None:
 
     if TUNNEL_ENABLED:
         missing += [k for k in _REQUIRED_TUNNEL if not os.getenv(k)]
-
-    if SINK_TYPE == "solr":
-        if SOLR_DIRECT_ENABLED:
-            if not SOLR_URL:
-                missing.append("SOLR_URL")
-        else:
-            missing += [k for k in _REQUIRED_SOLR if not os.getenv(k)]
 
     if not missing:
         return

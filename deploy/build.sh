@@ -18,7 +18,7 @@ set -e
 # 변수 설정
 # ----------------------------------------------------------------
 
-IMAGE_NAME="keyword-crawler"
+IMAGE_NAME="discovery-worker"
 
 # ${1:-latest}: 첫 번째 인자($1)가 전달됐으면 그 값을, 없으면 "latest" 를 사용.
 TAG="${1:-latest}"
@@ -49,5 +49,5 @@ echo ""
 echo "✓ 빌드 완료: ${IMAGE_NAME}:${TAG}"
 echo ""
 echo "다음 단계:"
-echo "  워커 시작  → ./deploy/run.sh <role> <source> <worker_id>"
+echo "  워커 시작  → ./deploy/run.sh <source> <worker_id>"
 echo "  이미지 확인 → docker images ${IMAGE_NAME}"

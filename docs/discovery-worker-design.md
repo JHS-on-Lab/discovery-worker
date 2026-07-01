@@ -1,7 +1,9 @@
-﻿# keyword-crawler — 설계 문서
+﻿# discovery-worker — 설계 문서
 
 > 이 문서는 구현 에이전트(Claude Code)가 읽고 개발에 착수하기 위한 설계 명세다.
 > 결정 사항은 근거와 함께 기록했으며, 명세에서 벗어나야 할 경우 이 문서를 먼저 갱신한다.
+>
+> **프로젝트 범위**: 이 문서는 원래 discovery + extraction 통합 시스템의 설계 문서였다. 현재는 **본문 추출은 `extraction-worker` 프로젝트로 분리**되어 있으며, 이 프로젝트(`discovery-worker`)는 URL 발견(Discovery) 단계만 담당한다. 섹션 3~8의 아키텍처·설계 원칙은 전체 시스템 맥락으로 참고하되, 모듈 구조(섹션 4)와 실행 모델(섹션 4.2)은 이 프로젝트 기준으로 업데이트되었다.
 
 ---
 
@@ -64,15 +66,16 @@ flowchart LR
 ```
 app/
   adapters/            # SourceAdapter 구현: naver_news.py, naver_stock.py, daum_news.py, google_news.py, baidu_news.py
-  extraction/          # 추출 체인: library_chain.py, rule_engine.py, extractor.py
-  fetch/               # Fetcher: http_client.py, headless.py, proxy.py, rate_limit.py
-  sink/                # Sink 포트 + 구현: base.py, file_sink.py, solr_sink.py(나중)
-  repository/          # RDB 접근: keyword_repo.py, crawl_url_repo.py, domain_repo.py
+  fetch/               # HTTP 클라이언트: _client.py (발견 어댑터 공용)
+  repository/          # RDB 접근: keyword_repo.py, crawl_url_repo.py, collection_log_repo.py
   scheduling/          # discovery dispatcher, overlap lock
-  worker/              # extraction worker 루프, reaper
-  domain_logic/        # URL 정규화, 실패 분류, 백오프 계산
+  worker/              # discovery worker 루프
+  domain_logic/        # URL 정규화
   config.py            # 환경변수/설정파일 로딩
-# 관리 UI/API 는 별도 프로젝트 crawler-admin 으로 분리 운영
+  types.py             # DiscoverResult 등 핵심 타입
+  ports.py             # SourceAdapter 포트(Protocol)
+# 본문 추출(extraction), Sink, reaper — extraction-worker 프로젝트에 위치
+# 관리 UI/API — crawler-admin 프로젝트에 위치
 ```
 
 ### 4.1 핵심 포트(인터페이스)
@@ -97,30 +100,30 @@ class Sink(Protocol):
         """FileSink(.jsonl) 또는 SolrSink. 콘텐츠 타입 무관, 호출부는 동일."""
 ```
 
-### 4.2 실행 모델 — 역할·소스별 독립 실행
+### 4.2 실행 모델 — 소스별 독립 실행
 
-코드는 한 벌이고, **같은 이미지를 실행 인자(또는 환경변수)만 바꿔** 여러 컨테이너로 띄운다. 인자는 두 축이다.
+`--source` 인자로 처리할 소스를 지정한다. **`--role` 플래그는 없다** — 이 프로젝트는 발견(Discovery) 전용이다. 본문 추출은 `extraction-worker` 프로젝트가 별도로 담당한다.
 
-- `--role` : `discovery` | `extraction` — **진입점 선택**(어느 루프를 돌릴지).
-- `--source` : `naver_news` | `naver_stock` | `daum_news` | `google_news` | `baidu_news` | `all` — **점유 쿼리의 `WHERE source_type` 필터값**. 기본값 `all`.
+- `--source` : `naver_news` | `naver_stock` | `daum_news` | `google_news` | `baidu_news` | `all` — **점유 쿼리의 `WHERE source_type` 필터값**. 기본값 없음(필수).
 
 ```bash
-python -m app --role discovery  --source naver_news   # 네이버 발견자
-python -m app --role discovery  --source daum_news    # 다음 발견자
-python -m app --role extraction --source all     # 공용 추출자
+python -m app --source naver_news   # 네이버 발견자
+python -m app --source daum_news    # 다음 발견자
+python -m app --source all          # 전체 소스 발견자 (소규모 운영)
 ```
 
 ```yaml
-# 같은 이미지, 인자만 다르게
+# discovery-worker — 소스별 발견 워커
 services:
-  discover-naver_news: { image: keyword-crawler:latest, command: ["--role","discovery","--source","naver_news"] }
-  discover-daum_news:  { image: keyword-crawler:latest, command: ["--role","discovery","--source","daum_news"] }
-  extract:        { image: keyword-crawler:latest, command: ["--role","extraction","--source","all"], deploy: { replicas: 3 } }
+  discover-naver_news: { image: discovery-worker:latest, command: ["--source","naver_news"] }
+  discover-daum_news:  { image: discovery-worker:latest, command: ["--source","daum_news"] }
+  discover-google:     { image: discovery-worker:latest, command: ["--source","google_news"] }
+
+# extraction-worker — 별도 프로젝트에서 실행
+# extract: { image: extraction-worker:latest, deploy: { replicas: 3 } }
 ```
 
-핵심 규칙: **인자는 진입점에서만 분기하고 그 아래 로직은 동일**해야 한다. `--role`은 루프 선택, `--source`은 필터값일 뿐이다. 어댑터 선택은 발견자가 집은 키워드의 `source_type`으로 결정되므로, 소스별 별도 코드 경로를 만들지 않는다(같은 코드에 필터만 다르게 먹인다). CLI 인자와 환경변수를 모두 받고 CLI가 환경변수를 덮어쓰게 하면 가장 유연하다(K8s에서는 환경변수 주입이 편하다).
-
-**권장 형태**: 발견은 소스별로 분리(스크래핑 대상·차단 양상·렌더링 방식이 소스마다 다름), 추출은 공용(추출할 URL의 도메인이 소스와 무관한 경우가 많음). 확장도 병목만 독립적으로 — 네이버 키워드가 많으면 `discover-naver_news`만 replicas를 늘리고(같은 소스 발견자 여러 개는 `SKIP LOCKED`로 키워드를 안 겹치게 나눠 가짐), 추출이 밀리면 `extract`만 늘린다. 소규모일 땐 `--source all` 발견자 하나로 시작해 트래픽이 커지면 소스별로 무중단 분리.
+**권장 형태**: 발견은 소스별로 분리(스크래핑 대상·차단 양상·렌더링 방식이 소스마다 다름). 확장 시 병목인 소스만 replicas를 늘린다. 소규모일 땐 `--source all` 하나로 시작해 트래픽이 커지면 소스별로 무중단 분리.
 
 **전제**: 프로세스는 독립이지만 **MySQL과 `crawl_url` 큐는 공유**한다(데이터 평면은 하나). 소스별로 물리적으로 다른 DB를 쓰는 분리는 이 설계 범위 밖이다.
 

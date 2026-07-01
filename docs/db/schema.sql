@@ -1,5 +1,5 @@
 -- ============================================================
--- keyword-crawler schema  (DBA 전달용 — 최종 버전)
+-- discovery-worker / extraction-worker schema  (DBA 전달용 — 최종 버전)
 -- MySQL 8.0+  /  InnoDB  /  utf8mb4_unicode_ci
 -- ============================================================
 
