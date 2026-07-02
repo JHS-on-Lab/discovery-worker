@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import text
 from app.repository.db import db_context
 
-_PORTALS = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock")
+_SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock")
 
 
 def _insert(conn, keyword: str, source_type: str, display_name: str | None,
@@ -86,8 +86,8 @@ def _list(engine, source: str | None) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description="t_keyword 테이블 키워드 등록")
-    p.add_argument("--source",       choices=_PORTALS, metavar="PORTAL",
-                   help=f"소스 종류: {' | '.join(_PORTALS)}")
+    p.add_argument("--source",       choices=_SOURCES, metavar="SOURCE",
+                   help=f"소스 종류: {' | '.join(_SOURCES)}")
     p.add_argument("--keyword",      nargs="+", metavar="KW",
                    help="등록할 키워드 (복수 가능)")
     p.add_argument("--file",         metavar="FILE",

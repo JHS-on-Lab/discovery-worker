@@ -1,8 +1,4 @@
-"""baseline — 현재 스키마 전체 (squash)
-
-이전 4개 마이그레이션(initial_schema, add_t_crawl_runtime,
-rename_t_article_url_to_t_crawl_url, rename_portal_type_to_source_type)을
-하나로 통합한 기준 마이그레이션.
+"""baseline — 현재 스키마 전체
 
 Revision ID: c0d1e2f3a4b5
 Revises:

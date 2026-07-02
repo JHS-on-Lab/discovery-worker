@@ -41,7 +41,7 @@ keyword = Table(
            comment="다음 수집 예정 시각(UTC). NULL 또는 과거이면 즉시 수집 대상"),
     Column("retry_pending",    Boolean,     nullable=False, server_default="0",
            comment="다음 수집 시 full scan 필요 여부. 수집 중단(403 등) 시 True, 성공 완료 시 False"),
-    UniqueConstraint("keyword", "source_type", name="uq_keyword_portal"),
+    UniqueConstraint("keyword", "source_type", name="uq_keyword_source_type"),
     mysql_engine="InnoDB",
     mysql_charset="utf8mb4",
     mysql_collate="utf8mb4_unicode_ci",

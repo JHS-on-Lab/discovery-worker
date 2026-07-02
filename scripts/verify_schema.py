@@ -44,7 +44,7 @@ EXPECTED_INDEXES = {
     "t_crawl_url":      {"uq_crawl_url_hash", "ix_crawl_url_claim",
                          "ix_crawl_url_host", "ix_crawl_url_keyword",
                          "ix_crawl_url_status", "ix_crawl_url_collected_date"},
-    "t_keyword":        {"uq_keyword_portal", "ix_keyword_next_discover_at"},
+    "t_keyword":        {"uq_keyword_source_type", "ix_keyword_next_discover_at"},
     "t_collection_log": {"ix_collection_log_date_type", "ix_collection_log_keyword_date"},
 }
 

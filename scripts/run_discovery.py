@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app import config
 
-_PORTALS = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock")
+_SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock")
 KST = timezone(timedelta(hours=9))
 
 
@@ -40,7 +40,7 @@ KST = timezone(timedelta(hours=9))
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="발견 단계 수동 실행")
-    p.add_argument("--source",    required=True, choices=_PORTALS, help="실행할 소스")
+    p.add_argument("--source",    required=True, choices=_SOURCES, help="실행할 소스")
     p.add_argument("--keyword",   default=None,  help="직접 지정 키워드 (생략 시 DB 에서 꺼냄)")
     p.add_argument("--max-pages", type=int, default=None, help="최대 페이지 수 (어댑터 기본값 사용)")
     p.add_argument("--dry-run",   action="store_true", help="DB 에 쓰지 않고 URL 만 출력")

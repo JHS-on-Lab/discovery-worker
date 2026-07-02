@@ -33,12 +33,12 @@ CREATE TABLE t_keyword (
   next_discover_at DATETIME               COMMENT '다음 수집 예정 시각(UTC). NULL 또는 과거이면 즉시 수집 대상',
   retry_pending    TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '다음 수집 시 full scan 필요 여부. 수집 중단(403 등) 시 1, 성공 완료 시 0',
   PRIMARY KEY (id),
-  UNIQUE KEY uq_keyword_portal        (keyword, source_type),
+  UNIQUE KEY uq_keyword_source_type   (keyword, source_type),
   KEY        ix_keyword_next_discover_at (next_discover_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-CREATE TABLE t_article_url (
+CREATE TABLE t_crawl_url (
   id                BIGINT        NOT NULL AUTO_INCREMENT,
   url               TEXT          NOT NULL,
   url_hash          VARCHAR(64)   NOT NULL,
@@ -59,12 +59,12 @@ CREATE TABLE t_article_url (
   created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_article_url_hash      (url_hash),
-  KEY        ix_article_url_status    (status),
-  KEY        ix_article_url_collected_date (collected_date),
-  KEY        ix_article_url_claim     (status, next_retry_at, priority),
-  KEY        ix_article_url_host      (host),
-  KEY        ix_article_url_keyword   (keyword_id)
+  UNIQUE KEY uq_crawl_url_hash      (url_hash),
+  KEY        ix_crawl_url_status    (status),
+  KEY        ix_crawl_url_collected_date (collected_date),
+  KEY        ix_crawl_url_claim     (status, next_retry_at, priority),
+  KEY        ix_crawl_url_host      (host),
+  KEY        ix_crawl_url_keyword   (keyword_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

@@ -427,38 +427,38 @@ def main() -> None:
     args = p.parse_args()
 
     total = len(_KEYWORDS)
-    portals: dict[str, int] = {}
-    for _, portal, *_ in _KEYWORDS:
-        portals[portal] = portals.get(portal, 0) + 1
+    sources: dict[str, int] = {}
+    for _, source, *_ in _KEYWORDS:
+        sources[source] = sources.get(source, 0) + 1
 
     print(f"총 {total}개 키워드 적재 예정")
-    for portal, cnt in sorted(portals.items()):
-        print(f"  {portal}: {cnt}개")
+    for source, cnt in sorted(sources.items()):
+        print(f"  {source}: {cnt}개")
     print()
 
     if args.dry_run:
         print("[dry-run] 실제 DB 적재 없음")
-        for kw, portal, display, priority, interval in _KEYWORDS:
+        for kw, source, display, priority, interval in _KEYWORDS:
             label = f" ({display})" if display else ""
-            print(f"  {portal:<14} {kw}{label}")
+            print(f"  {source:<14} {kw}{label}")
         return
 
     inserted = skipped = 0
     with db_context() as engine:
         with engine.begin() as conn:
-            for kw, portal, display_name, priority, interval in _KEYWORDS:
+            for kw, source, display_name, priority, interval in _KEYWORDS:
                 result = conn.execute(
                     text("""
                         INSERT INTO t_keyword
                             (keyword, source_type, display_name, enabled, priority, interval_seconds)
                         VALUES
-                            (:kw, :portal, :display_name, 1, :priority, :interval)
+                            (:kw, :source, :display_name, 1, :priority, :interval)
                         ON DUPLICATE KEY UPDATE
                             id = id
                     """),
                     {
                         "kw":           kw,
-                        "portal":       portal.upper(),
+                        "source":       source.upper(),
                         "display_name": display_name,
                         "priority":     priority,
                         "interval":     interval,
