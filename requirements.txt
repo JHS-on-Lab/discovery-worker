@@ -13,6 +13,9 @@ python-dotenv==1.1.0
 # HTTP
 httpx==0.28.1
 
+# HTML 파싱 (네이버/다음 어댑터)
+selectolax==0.4.10
+
 # Google 뉴스 수집 (undetected-chromedriver)
 undetected-chromedriver>=3.5.5
 selenium>=4.0.0
