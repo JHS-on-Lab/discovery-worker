@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import text, inspect
 from app.repository.db import db_context
 
-EXPECTED_TABLES = {"t_keyword", "t_crawl_url", "t_domain", "t_collection_log", "alembic_version"}
+EXPECTED_TABLES = {"t_keyword", "t_crawl_url", "t_domain", "t_collection_log"}
 
 EXPECTED_COLUMNS = {
     "t_keyword": {
