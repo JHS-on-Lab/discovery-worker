@@ -27,7 +27,7 @@
 
 1. **설정은 코드가 아니라 데이터로.** 추출 규칙, 도메인 정책, 수집 주기 등 운영 중 바뀌는 것들은 코드에 박지 않고 DB에 둔다. 재배포 없이 바꿀 수 있어야 한다.
 2. **단계는 함수 호출이 아니라 영속 테이블로 분리한다.** 발견과 추출은 서로를 호출하지 않고, RDB의 작업 테이블(`crawl_url`)을 통해서만 소통한다. 이 테이블이 두 단계의 인터페이스다.
-3. **경계는 포트(인터페이스)로 둔다.** Sink(저장소), Fetcher(네트워크), Extractor(추출), SourceAdapter(소스)는 모두 교체 가능한 인터페이스로 정의한다. 예: 저장소를 File→Solr로, 프록시 공급자를 단일 IP→로테이팅으로 교체해도 다른 코드는 손대지 않는다.
+3. **경계는 포트(인터페이스)로 둔다.** 이 프로젝트의 경계는 `SourceAdapter`(소스)다. 예: 프록시 공급자를 단일 IP→로테이팅으로 교체해도 다른 코드는 손대지 않는다. (Sink(저장소)·Extractor(추출) 포트는 `extraction-worker` 프로젝트 소관 — 4.1 참고.)
 4. **실패를 일급으로 다룬다.** 차단을 "막는다"가 아니라 "맞아도 우아하게 물러났다 다시 온다"로 설계한다.
 5. **테이블은 과하게 분리하지 않는다.** 상태·실패·재시도는 별도 테이블이 아니라 작업 테이블의 컬럼으로 흡수한다.
 
@@ -80,25 +80,16 @@ app/
 
 ### 4.1 핵심 포트(인터페이스)
 
+이 프로젝트(`app/ports.py`)가 실제로 정의하는 포트는 `SourceAdapter` 하나뿐이다.
+
 ```python
 class SourceAdapter(Protocol):
     source_type: str
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
         """검색·목록 결과를 긁어 콘텐츠 URL 목록과 다음 cursor를 반환. 본문은 다루지 않음."""
-
-class Fetcher(Protocol):
-    def fetch(self, url: str, *, render: str = "static") -> FetchResult:
-        """static(HTTP) 우선, render='headless'면 브라우저. 프록시·레이트리밋·네트워크 재시도는 내부 처리."""
-
-class Extractor(Protocol):
-    def extract(self, url: str, html: str, host: str, source_type: str = "",
-                keyword: str = "", keyword_id: int | None = None) -> CollectedContent | ExtractionFailure:
-        """규칙 존재 시 규칙 우선, 없으면 라이브러리 체인. 소스·콘텐츠 타입 무관. 실패 판정 포함."""
-
-class Sink(Protocol):
-    def write(self, content: CollectedContent) -> None:
-        """FileSink(.jsonl) 또는 SolrSink. 콘텐츠 타입 무관, 호출부는 동일."""
 ```
+
+> `Fetcher`/`Extractor`/`Sink` 포트는 `extraction-worker`가 이어받아 정의한다(분리 전 이 문서에서 함께 설계되었던 흔적 — 41faf0b 리팩토링으로 이동). 발견 어댑터의 HTTP 클라이언트는 별도 포트 없이 `app/fetch/_client.py`를 직접 호출한다.
 
 ### 4.2 실행 모델 — 소스별 독립 실행
 
@@ -446,39 +437,36 @@ Traceback (most recent call last):
 ## 13. 기술 스택 / 의존성 (권장)
 
 - **언어**: Python.
-- **정적 HTTP**: `httpx`(또는 `requests`).
-- **헤드리스**: `playwright`.
-- **본문 추출 라이브러리 체인**: 1차 `trafilatura`, 2차 보조(`readability-lxml`/`newspaper` 등 중 택1).
-- **규칙 기반 파싱**: `lxml`/`selectolax`/`BeautifulSoup`.
+- **정적 HTTP**: `httpx`.
+- **헤드리스**: 구글 발견 어댑터만 `undetected-chromedriver`(+ Xvfb) 사용. 그 외 소스는 정적 HTTP만으로 충분.
 - **RDB**: **MariaDB 10.5**(확정, 공유 RDS). MariaDB 10.5는 `FOR UPDATE ... SKIP LOCKED`(MySQL 8.0+/MariaDB 10.6+ 전용)를 지원하지 않으므로, row 점유는 락 없이 **`UPDATE ... WHERE id=:id AND status IN (...)` 후 `rowcount` 확인**(낙관적 클레임)으로 처리한다 — `rowcount=1`이면 이 워커가 점유 성공, `0`이면 다른 워커가 이미 가져간 것이므로 다음 후보로 넘어간다. 단일 row 클레임에 한해 SKIP LOCKED와 기능적으로 동치이며, 버전 제약과 무관하게 동작한다. 접근은 `SQLAlchemy`.
   - **문자셋**: 테이블·컬럼·커넥션을 모두 `utf8mb4`로 통일한다. 바이두 중문과 한국어를 함께 다루므로, 이게 누락되면 저장 단계에서 문자가 깨진다.
   - **중복 삽입 구문**: PostgreSQL의 `ON CONFLICT DO NOTHING`에 해당하는 MySQL 구문은 `INSERT ... ON DUPLICATE KEY UPDATE`(또는 `INSERT IGNORE`)다. `url_hash` UNIQUE 키 기준으로 중복을 흡수한다.
-- **Sink(나중)**: `pysolr` 등.
 - **설정**: 환경변수·설정파일(DB 아님).
+
+> 본문 추출 라이브러리 체인(`trafilatura` 등), 규칙 기반 파싱(`lxml`/`selectolax`), Sink(`pysolr` 등)는 `extraction-worker`의 스택 — 이 프로젝트는 본문을 다루지 않는다.
 
 ### 13.1 미결 사항
 
-- **프록시/IP 공급자 미정.** Fetcher의 프록시 인터페이스로 추상화해두고, 단일 IP 구현으로 시작 가능. 결정 시 구현만 추가.
-- **규칙 롤백 이력 테이블** 추가 여부(5.1).
+- **프록시/IP 공급자 미정.** 발견 어댑터의 프록시 설정(`PROXY_PROVIDER`)으로 추상화해두고, 단일 IP 구현으로 시작 가능. 결정 시 구현만 추가.
 - **URL 수집 전략(발견)은 유동적.** 기간 필터 단위·정렬·중단 조건 등은 고객 요청에 따라 바뀔 수 있다(8절). 발견 어댑터와 설정값으로 격리되어 있어, 전략이 바뀌어도 추출·저장·실패 처리 등 나머지 구조는 영향받지 않는다. 전략 미확정 상태에서도 개발을 시작할 수 있다.
 - **바이두 발견 전략 미확정** — 기간 필터/정렬 지원 여부, 해외 접속 차단 및 중국 프록시 필요 여부 분석 필요(8.4).
 
 ---
 
-## 14. 설정 (예시 키)
+## 14. 설정 (실제 키 — `app/config.py` 기준)
 
-- `SINK_TYPE` = `file` | `solr`
-- `FILE_SINK_DIR`, `LOG_DIR`
-- `SOLR_BATCH_SIZE`, `SOLR_COMMIT_WITHIN_MS`(기본 5000ms — 다수 컨테이너 동시 flush 시 하드 커밋 병목 방지)
-- `DB_DSN`
-- `WORKER_ID`(점유 식별)
-- `RULES_CACHE_TTL_SECONDS`(기본 60)
-- `CLAIM_TIMEOUT_SECONDS`(reaper 기준)
-- `MAX_ATTEMPTS`, `BACKOFF_BASE_SECONDS`, `BACKOFF_MAX_SECONDS`
-- `DEFAULT_CRAWL_DELAY_MS`, `DEFAULT_RENDER_MODE`
-- `PROXY_PROVIDER`(기본 단일 IP 구현)
-- `LOG_DIR`, `ERROR_LOG_PATH`, `LOG_LEVEL`, `LOG_ROTATION`(size|daily)
-- `HEARTBEAT_INTERVAL_SECONDS`
+- **RDS**: `RDS_HOST`, `RDS_PORT`, `RDS_USER`, `RDS_PASSWORD`, `RDS_DB`
+- **SSH 터널**(로컬 개발용, `TUNNEL_ENABLED=true`일 때만): `TUNNEL_SSH_HOST`, `TUNNEL_SSH_PORT`, `TUNNEL_SSH_USER`, `TUNNEL_SSH_KEY_PATH`, `TUNNEL_LOCAL_PORT`
+- **워커**: `WORKER_ID`(점유 식별)
+- **Fetcher 공통**: `DEFAULT_CRAWL_DELAY_MS`, `DEFAULT_RENDER_MODE`, `PROXY_PROVIDER`, `HTTP_VERIFY_SSL`
+- **소스별 옵션**: `GOOGLE_DISCOVERY_MODE`(search|rss), `DAUM_NEWS_ALL`
+- **소스별 최대 페이지 수**: `NAVER_MAX_PAGES`, `DAUM_MAX_PAGES`, `GOOGLE_MAX_PAGES`, `BAIDU_MAX_PAGES`, `NAVER_STOCK_MAX_PAGES`, `DUCKDUCKGO_MAX_PAGES`
+- **재시도/재스케줄**: `DISCOVERY_403_RESCHEDULE_SEC`, `BOT_DETECT_RETRY_SEC`
+- **로깅**: `LOG_DIR`, `LOG_LEVEL`, `LOG_ROTATION`(daily|size), `LOG_RETAIN_DAYS`, `LOG_BACKUP_COUNT`
+- **하트비트**: `HEARTBEAT_INTERVAL_SECONDS`
+
+> `SINK_TYPE`/`FILE_SINK_DIR`/`SOLR_*`/`RULES_CACHE_TTL_SECONDS`/`CLAIM_TIMEOUT_SECONDS`(reaper)/`MAX_ATTEMPTS`/`BACKOFF_*` 등은 extraction-worker 소관 설정이며 이 프로젝트의 `config.py`에는 존재하지 않는다.
 
 ---
 
@@ -495,22 +483,24 @@ Traceback (most recent call last):
 
 각 단계는 그 자체로 실행/검증 가능한 상태를 목표로 한다.
 
-**0. 뼈대와 계약(contract).** 코드 살을 붙이기 전에 패키지 구조 + 모든 포트 인터페이스(`SourceAdapter`/`Fetcher`/`Extractor`/`Sink`) + 핵심 데이터 타입(`Article`/`FetchResult`/`DiscoverResult`/`ExtractionFailure`)을 시그니처만 정의(구현은 비움). 설정 로딩과 로깅 골격(정보 로그 / 전용 `error.log` 분리)도 여기서. **가장 중요한 단계** — 여기서 경계가 잘 그어지면 나머지는 빈칸 채우기가 된다.
+> **주의**: 아래 단계들은 discovery/extraction 분리 전(`keyword-crawler` 시절) 작성된 원래 빌드 순서다. 분리 리팩토링(41faf0b) 이후 Sink·Extractor·Fetcher(헤드리스)·규칙 엔진·reaper 관련 단계(2·3 일부·4·5·8·9·10·12)는 `extraction-worker` 프로젝트로 이동해 이미 완료되었고, 이 저장소에는 남아있지 않다. 히스토리 참고용으로만 남겨둔다.
+
+**0. 뼈대와 계약(contract).** 코드 살을 붙이기 전에 패키지 구조 + 포트 인터페이스(`SourceAdapter`, 분리 전에는 `Fetcher`/`Extractor`/`Sink`도 포함) + 핵심 데이터 타입(`DiscoverResult`, 분리 전에는 `Article`/`FetchResult`/`ExtractionFailure`도 포함)을 시그니처만 정의(구현은 비움). 설정 로딩과 로깅 골격(정보 로그 / 전용 `error.log` 분리)도 여기서. **가장 중요한 단계** — 여기서 경계가 잘 그어지면 나머지는 빈칸 채우기가 된다.
 → 검증: import 통과 + 타입 체크 통과.
 
 **1. 저장소 + 스키마.** MariaDB 10.5 테이블 3개 마이그레이션, `utf8mb4`, URL 정규화 + `url_hash`, `INSERT ... ON DUPLICATE KEY UPDATE` 중복 삽입, 낙관적 클레임(`UPDATE ... WHERE ... AND status=...` + `rowcount` 확인) 점유 쿼리. 다른 모듈에 의존하지 않아 가장 먼저 살을 붙이기 좋다.
 → 검증: 단위 테스트 — 중복 삽입해도 한 row만 남는가, 점유 쿼리가 같은 row를 두 번 주지 않는가.
 
-**2. Sink(파일).** `Article`을 받아 jsonl로 쓰는 `FileSink`(0단계 포트 구현). `SolrSink`는 비워둠.
+**2. Sink(파일).** *(extraction-worker로 이동, 이 저장소에는 없음)* `Article`을 받아 jsonl로 쓰는 `FileSink`(0단계 포트 구현). `SolrSink`는 비워둠.
 → 검증: Article 하나 넣으면 날짜·소스별 파일에 한 줄 쌓이는가.
 
-**3. Fetcher(정적).** URL→HTML, 레이트리밋 + 프록시 인터페이스(단일 IP 구현) + 네트워크 재시도. 헤드리스는 인터페이스만.
+**3. Fetcher(정적).** discovery-worker는 `app/fetch/_client.py`(정적 HTTP)만 유지. 레이트리밋 + 프록시 인터페이스(단일 IP 구현) + 네트워크 재시도. 헤드리스(undetected-chromedriver)는 구글 어댑터 전용으로 남아있고, 그 외 소스는 정적 HTTP만 사용.
 → 검증: 저장한 샘플·안전한 테스트 URL로 응답 확인.
 
-**4. 추출 코어.** 라이브러리 체인으로 본문 추출 + 성공/실패 판정 + 실패 분류. **저장해둔 콘텐츠 HTML 픽스처로 개발**(네트워크 없이 파서만 빠르게 반복; Fetcher와 분리돼 있다는 게 모듈화의 증거).
+**4. 추출 코어.** *(extraction-worker로 이동, 이 저장소에는 없음)* 라이브러리 체인으로 본문 추출 + 성공/실패 판정 + 실패 분류. **저장해둔 콘텐츠 HTML 픽스처로 개발**(네트워크 없이 파서만 빠르게 반복; Fetcher와 분리돼 있다는 게 모듈화의 증거).
 → 검증: 샘플 HTML 넣으면 기대한 제목·본문이 나오는가.
 
-**5. 추출 워커 루프.** 1~4를 조립 — 점유 → Fetcher → 추출 → 성공이면 Sink, 실패면 분류·백오프. **조립일 뿐 새 로직은 거의 없어야 한다**(새 로직이 많이 필요하면 앞 단계 경계가 잘못된 것).
+**5. 추출 워커 루프.** *(extraction-worker로 이동, 이 저장소에는 없음)* 1~4를 조립 — 점유 → Fetcher → 추출 → 성공이면 Sink, 실패면 분류·백오프. **조립일 뿐 새 로직은 거의 없어야 한다**(새 로직이 많이 필요하면 앞 단계 경계가 잘못된 것).
 → 검증: 큐에 URL 몇 개 넣고 워커를 돌리면 파일에 콘텐츠가 쌓이고, 실패한 건 상태가 바뀌는가.
 
 **6. 발견(한 소스부터).** 네이버 하나만 — 검색 → URL 목록 → 큐 적재. 디스패처 + cron 트리거 + 실행 겹침 잠금. 한 소스로 끝까지 동작시킨 뒤 다음·구글·바이두를 같은 인터페이스로 추가.
@@ -520,15 +510,15 @@ Traceback (most recent call last):
 - 구글: `google.com/search?tbm=nws` 를 undetected-chromedriver 로 스크랩. RSS는 CBMi 리다이렉트 문제로 미사용 (`GOOGLE_DISCOVERY_MODE=rss` 로 대안 전환 가능).
 - 바이두: 미구현 (전략 미확정 — 해외 접속 차단 및 중국 프록시 필요 여부 선행 분석 필요).
 
-**8. 규칙 엔진 + 핫리로드.** `rules_json` 해석기 + TTL 캐시 + 규칙 우선 체인.
+**8. 규칙 엔진 + 핫리로드.** *(extraction-worker로 이동, 이 저장소에는 없음)* `rules_json` 해석기 + TTL 캐시 + 규칙 우선 체인.
 
-**9. 운영 장치.** reaper, 도메인 차단기, dead-letter.
+**9. 운영 장치.** *(extraction-worker로 이동, 이 저장소에는 없음)* reaper, 도메인 차단기, dead-letter.
 
-**10. 헤드리스 폴백.** Playwright 통합(구글·바이두). 컨테이너 이미지에 브라우저 바이너리·한글/중문 폰트 포함 주의.
+**10. 헤드리스 폴백.** *(구글 어댑터 한정으로 discovery-worker에 일부 남음, 나머지는 extraction-worker 소관)* Playwright/undetected-chromedriver 통합. 컨테이너 이미지에 브라우저 바이너리·폰트 포함 주의.
 
 **11. 관리 UI/API.** 별도 프로젝트 `crawler-admin`(FastAPI + Jinja2)으로 구현. 규칙 편집·테스트(URL 대입 미리보기)·enable/version/rollback, 실패 재투입, run-now(`next_discover_at=now`), 드리프트 모니터링.
 
-**12. SolrSink (완료).** `SINK_TYPE=solr`로 전환. `crawl_id(url)`(lookup3ycs64 기반 16자 hex)를 문서 id로 upsert. FileSink 와 동일한 필드 포맷 사용.
+**12. SolrSink (완료).** *(extraction-worker로 이동, 이 저장소에는 없음)* `SINK_TYPE=solr`로 전환. `crawl_id(url)`(lookup3ycs64 기반 16자 hex)를 문서 id로 upsert. FileSink 와 동일한 필드 포맷 사용.
 
 ### 15.3 Claude Code 지시 팁
 
