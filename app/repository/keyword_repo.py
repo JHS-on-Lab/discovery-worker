@@ -4,11 +4,12 @@ keyword 테이블 접근.
 keyword 는 수집 스케줄을 담당한다.
 next_discover_at 이 현재 시각보다 과거이면 "수집할 때가 됐다"는 뜻이다.
 
-claim_next() 의 동작 원리:
-  1. next_discover_at <= NOW() 인 키워드를 FOR UPDATE SKIP LOCKED 로 잠근다.
-     → 다른 워커가 동시에 같은 키워드를 가져가는 것을 막는다.
-  2. 잠그는 즉시, 같은 트랜잭션 안에서 next_discover_at 을 24시간 뒤로 밀어둔다.
-     → 트랜잭션이 끝난 뒤에도 다른 워커가 다시 집어가지 않는다.
+claim_next() 의 동작 원리 (낙관적 클레임, MariaDB 10.5 호환 — SKIP LOCKED 미지원):
+  1. next_discover_at <= NOW() 인 후보를 잠금 없이 조회한다.
+  2. 각 후보에 대해 UPDATE ... WHERE 조건(원래 상태 재확인)으로 선점을 시도하고 rowcount 를 확인한다.
+     → rowcount=1 이면 이 워커가 점유 성공, 0 이면 다른 워커가 이미 가져간 것이므로 다음 후보로 넘어간다.
+  3. 점유 성공 시, 같은 UPDATE 안에서 next_discover_at 을 24시간 뒤로 밀어둔다.
+     → 다른 워커가 다시 집어가지 않는다.
 """
 
 from __future__ import annotations

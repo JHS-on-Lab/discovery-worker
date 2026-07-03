@@ -232,7 +232,7 @@ erDiagram
 현재 요구: **하루 1회 수집**, cron 사용. 단, cron은 "무엇을 수집할지"를 박지 않고 **트리거(틱)로만** 쓴다.
 
 - cron이 하루 1회 발견 디스패처를 깨운다.
-- 디스패처는 DB에서 `enabled` 키워드를 (추출과 동일하게 `FOR UPDATE SKIP LOCKED`로) 점유해 발견을 돌린다.
+- 디스패처는 DB에서 `enabled` 키워드를 (추출과 동일하게 낙관적 클레임 — `UPDATE ... WHERE status=... AND ...` 후 `rowcount` 확인으로) 점유해 발견을 돌린다.
 - 이 구조 덕분에 나중에 "이 키워드만 3시간마다"가 필요해지면 cron을 더 자주(예: 매시) 돌리고 디스패처가 `next_discover_at <= now`인 것만 집어가게 바꾸면 끝이다. 스키마·구조 변경 없음.
 
 **cron의 치명적 단점 대비 — 실행 겹침 방지.** 수집이 다음 cron 틱을 넘기면 두 실행이 부딪힌다. 시작 시 잠금(`flock` 또는 DB 실행 락 행)을 잡아 **이전 실행이 안 끝났으면 이번 틱은 건너뛴다.** (cron 호스트 다운으로 그날 실행이 누락되는 것은 하루 주기에서는 감수.)
@@ -319,7 +319,7 @@ erDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> discovered
-  discovered --> extracting: claim (SKIP LOCKED)
+  discovered --> extracting: claim (optimistic UPDATE + rowcount)
   extracting --> stored: 성공
   extracting --> failed_transient: 타임아웃 / 429 / 5xx / 차단
   extracting --> failed_permanent: 404 / 410 / paywall / 본문 불가
@@ -450,7 +450,7 @@ Traceback (most recent call last):
 - **헤드리스**: `playwright`.
 - **본문 추출 라이브러리 체인**: 1차 `trafilatura`, 2차 보조(`readability-lxml`/`newspaper` 등 중 택1).
 - **규칙 기반 파싱**: `lxml`/`selectolax`/`BeautifulSoup`.
-- **RDB**: **MySQL 8.0 이상**(확정). `FOR UPDATE ... SKIP LOCKED`는 MySQL 8.0+에서만 지원되므로 이 버전이 전제다. 접근은 `SQLAlchemy`.
+- **RDB**: **MariaDB 10.5**(확정, 공유 RDS). MariaDB 10.5는 `FOR UPDATE ... SKIP LOCKED`(MySQL 8.0+/MariaDB 10.6+ 전용)를 지원하지 않으므로, row 점유는 락 없이 **`UPDATE ... WHERE id=:id AND status IN (...)` 후 `rowcount` 확인**(낙관적 클레임)으로 처리한다 — `rowcount=1`이면 이 워커가 점유 성공, `0`이면 다른 워커가 이미 가져간 것이므로 다음 후보로 넘어간다. 단일 row 클레임에 한해 SKIP LOCKED와 기능적으로 동치이며, 버전 제약과 무관하게 동작한다. 접근은 `SQLAlchemy`.
   - **문자셋**: 테이블·컬럼·커넥션을 모두 `utf8mb4`로 통일한다. 바이두 중문과 한국어를 함께 다루므로, 이게 누락되면 저장 단계에서 문자가 깨진다.
   - **중복 삽입 구문**: PostgreSQL의 `ON CONFLICT DO NOTHING`에 해당하는 MySQL 구문은 `INSERT ... ON DUPLICATE KEY UPDATE`(또는 `INSERT IGNORE`)다. `url_hash` UNIQUE 키 기준으로 중복을 흡수한다.
 - **Sink(나중)**: `pysolr` 등.
@@ -498,7 +498,7 @@ Traceback (most recent call last):
 **0. 뼈대와 계약(contract).** 코드 살을 붙이기 전에 패키지 구조 + 모든 포트 인터페이스(`SourceAdapter`/`Fetcher`/`Extractor`/`Sink`) + 핵심 데이터 타입(`Article`/`FetchResult`/`DiscoverResult`/`ExtractionFailure`)을 시그니처만 정의(구현은 비움). 설정 로딩과 로깅 골격(정보 로그 / 전용 `error.log` 분리)도 여기서. **가장 중요한 단계** — 여기서 경계가 잘 그어지면 나머지는 빈칸 채우기가 된다.
 → 검증: import 통과 + 타입 체크 통과.
 
-**1. 저장소 + 스키마.** MySQL 8.0 테이블 3개 마이그레이션, `utf8mb4`, URL 정규화 + `url_hash`, `INSERT ... ON DUPLICATE KEY UPDATE` 중복 삽입, `FOR UPDATE ... SKIP LOCKED` 점유 쿼리. 다른 모듈에 의존하지 않아 가장 먼저 살을 붙이기 좋다.
+**1. 저장소 + 스키마.** MariaDB 10.5 테이블 3개 마이그레이션, `utf8mb4`, URL 정규화 + `url_hash`, `INSERT ... ON DUPLICATE KEY UPDATE` 중복 삽입, 낙관적 클레임(`UPDATE ... WHERE ... AND status=...` + `rowcount` 확인) 점유 쿼리. 다른 모듈에 의존하지 않아 가장 먼저 살을 붙이기 좋다.
 → 검증: 단위 테스트 — 중복 삽입해도 한 row만 남는가, 점유 쿼리가 같은 row를 두 번 주지 않는가.
 
 **2. Sink(파일).** `Article`을 받아 jsonl로 쓰는 `FileSink`(0단계 포트 구현). `SolrSink`는 비워둠.
@@ -555,7 +555,7 @@ Traceback (most recent call last):
 
 - 원천 HTML 아카이브는 **보관하지 않는다.** (재파싱 보정은 재크롤로만 가능 — 감수하기로 결정.) 향후 필요 시 별도 객체 저장소를 Sink 옆에 추가.
 - 키워드별 가변 주기(`interval_seconds`)는 컬럼만 두고 지금은 미사용(cron 하루 1회). 필요 시 7절 방식으로 전환.
-- 별도 메시지 큐(Redis/RabbitMQ)는 도입하지 않음. RDB `SKIP LOCKED`로 시작하고, 병목이 확인되면 그때 승격.
+- 별도 메시지 큐(Redis/RabbitMQ)는 도입하지 않음. RDB 낙관적 클레임(`UPDATE` + `rowcount` 확인)으로 시작하고, 병목이 확인되면 그때 승격.
 
 ---
 

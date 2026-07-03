@@ -9,8 +9,8 @@
     → 처리할 키워드 없으면 60초 대기 후 반복
 
 여러 워커를 동시에 띄워도 괜찮은 이유:
-  keyword_repo.claim_next() 가 'FOR UPDATE SKIP LOCKED' 를 사용한다.
-  쉽게 말해, 한 워커가 키워드를 집어 드는 순간 다른 워커는 그 키워드를 볼 수 없다.
+  keyword_repo.claim_next() 가 낙관적 클레임(조건부 UPDATE + rowcount 확인)을 사용한다.
+  쉽게 말해, 한 워커가 키워드를 집어 드는 순간 다른 워커는 같은 row 의 UPDATE 에서 rowcount=0 을 받아 넘어간다.
   또한 집어 드는 즉시 next_discover_at 을 24시간 뒤로 밀어두기 때문에
   이 워커가 작업을 마치기 전에 다른 워커가 같은 키워드를 다시 가져가는 일이 없다.
 

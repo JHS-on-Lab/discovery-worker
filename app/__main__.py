@@ -8,7 +8,7 @@ discovery-worker 진입점.
 
 소스(--source):
   naver_news | daum_news | google_news | baidu_news | naver_stock | all
-  같은 소스로 워커를 여러 개 띄워도 서로 다른 키워드를 나눠 처리한다 (SKIP LOCKED)
+  같은 소스로 워커를 여러 개 띄워도 서로 다른 키워드를 나눠 처리한다 (낙관적 클레임)
 """
 
 from __future__ import annotations
