@@ -60,10 +60,17 @@ class DuckDuckGoNewsAdapter(PaginatedAdapter):
         from app import config
         super().__init__(period, max_pages or config.DUCKDUCKGO_MAX_PAGES, delay_ms)
         # df 로 결과 풀이 좁을 때 DDG가 다음 페이지에 같은 항목을 반복 반환하는 경우가 있어
-        # 키워드 1회 발견(인스턴스 1개) 동안 이미 본 URL을 추적해 조기 종료한다.
+        # 이미 본 URL을 추적해 조기 종료한다. 인스턴스는 키워드마다 재사용되므로
+        # discover()에서 cursor=None(새 키워드 시작)마다 초기화한다.
         self._seen_urls: set[str] = set()
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
+        if cursor is None:
+            # 어댑터 인스턴스는 워커 루프에서 키워드마다 재사용되므로(dispatcher.py 참고),
+            # cursor=None(새 키워드 발견 시작)마다 초기화해야 이전 키워드의 URL이
+            # 이번 키워드의 결과를 오탐 중복으로 걸러내지 않는다.
+            self._seen_urls = set()
+
         page_num, offset, vqd = _split_cursor(cursor)
 
         if result := self._exceeded(page_num):

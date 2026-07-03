@@ -7,7 +7,7 @@ discovery-worker 진입점.
   python -m app --source naver_news --worker-id disc-naver-1
 
 소스(--source):
-  naver_news | daum_news | google_news | baidu_news | naver_stock | all
+  naver_news | daum_news | google_news | baidu_news | naver_stock | duckduckgo_news | all
   같은 소스로 워커를 여러 개 띄워도 서로 다른 키워드를 나눠 처리한다 (낙관적 클레임)
 """
 
@@ -20,7 +20,7 @@ import sys
 from app import logging_setup
 from app import config
 
-_SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock", "all")
+_SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock", "duckduckgo_news", "all")
 
 
 def _parse_args() -> argparse.Namespace:
