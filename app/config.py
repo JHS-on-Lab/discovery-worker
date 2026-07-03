@@ -73,6 +73,7 @@ DAUM_MAX_PAGES        = _env_int("DAUM_MAX_PAGES",        10)
 GOOGLE_MAX_PAGES      = _env_int("GOOGLE_MAX_PAGES",       5)
 BAIDU_MAX_PAGES       = _env_int("BAIDU_MAX_PAGES",        5)
 NAVER_STOCK_MAX_PAGES = _env_int("NAVER_STOCK_MAX_PAGES",  5)
+DUCKDUCKGO_MAX_PAGES  = _env_int("DUCKDUCKGO_MAX_PAGES",   5)
 
 # Log / Output
 LOG_DIR         = _env("LOG_DIR", "./logs")

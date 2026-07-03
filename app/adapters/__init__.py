@@ -22,4 +22,7 @@ def make_adapter(source_type: str) -> SourceAdapter:
     if pt == "NAVER_STOCK":
         from app.adapters.naver_stock import NaverStockAdapter
         return NaverStockAdapter()
+    if pt == "DUCKDUCKGO_NEWS":
+        from app.adapters.duckduckgo_news import DuckDuckGoNewsAdapter
+        return DuckDuckGoNewsAdapter()
     raise ValueError(f"알 수 없는 source_type: {source_type}")

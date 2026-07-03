@@ -11,7 +11,7 @@
 
 키워드 기반으로 여러 포털 소스를 탐색해, 발견된 콘텐츠의 **URL·제목·본문·메타데이터**를 수집·저장하는 서비스다. 뉴스 기사에 국한되지 않고, 포털에서 키워드로 탐색 가능한 **모든 종류의 웹 콘텐츠**를 수집 대상으로 한다. 단발 스크립트가 아니라 운영(operation)을 전제로 한다.
 
-- **대상 소스**: 네이버(뉴스·증권 종목토론), 다음 뉴스, 구글 뉴스, 바이두 뉴스 (`source_type`: `NAVER_NEWS`, `NAVER_STOCK`, `DAUM_NEWS`, `GOOGLE_NEWS`, `BAIDU_NEWS`)
+- **대상 소스**: 네이버(뉴스·증권 종목토론), 다음 뉴스, 구글 뉴스, 바이두 뉴스, DuckDuckGo(베트남어) (`source_type`: `NAVER_NEWS`, `NAVER_STOCK`, `DAUM_NEWS`, `GOOGLE_NEWS`, `BAIDU_NEWS`, `DUCKDUCKGO_NEWS`)
 - **수집 단위**: 키워드. 키워드는 RDB에 저장되며 각 키워드는 `source_type`을 가진다.  
   포털 검색 소스는 검색어, 증권 종목토론은 종목코드 등이 키워드가 된다.
 - **수집 대상의 핵심**: 본문 전문(full text). 이것이 빠지면 의미가 없다.
@@ -38,7 +38,7 @@
 ```mermaid
 flowchart LR
   KW[(keyword<br/>RDB)] --> DISP[Discovery dispatcher<br/>cron 트리거]
-  DISP --> DA[Discovery adapters<br/>NAVER_NEWS / NAVER_STOCK / DAUM_NEWS / GOOGLE_NEWS / BAIDU_NEWS]
+  DISP --> DA[Discovery adapters<br/>NAVER_NEWS / NAVER_STOCK / DAUM_NEWS / GOOGLE_NEWS / BAIDU_NEWS / DUCKDUCKGO_NEWS]
   DA -->|INSERT ON CONFLICT DO NOTHING| AU[(crawl_url<br/>큐 + 상태)]
   AU --> EX[Extraction workers]
   EX --> SINK{{Sink 포트}}
@@ -65,7 +65,7 @@ flowchart LR
 
 ```
 app/
-  adapters/            # SourceAdapter 구현: naver_news.py, naver_stock.py, daum_news.py, google_news.py, baidu_news.py
+  adapters/            # SourceAdapter 구현: naver_news.py, naver_stock.py, daum_news.py, google_news.py, baidu_news.py, duckduckgo_news.py
   fetch/               # HTTP 클라이언트: _client.py (발견 어댑터 공용)
   repository/          # RDB 접근: keyword_repo.py, crawl_url_repo.py, collection_log_repo.py
   scheduling/          # discovery dispatcher, overlap lock
@@ -104,7 +104,7 @@ class Sink(Protocol):
 
 `--source` 인자로 처리할 소스를 지정한다. **`--role` 플래그는 없다** — 이 프로젝트는 발견(Discovery) 전용이다. 본문 추출은 `extraction-worker` 프로젝트가 별도로 담당한다.
 
-- `--source` : `naver_news` | `naver_stock` | `daum_news` | `google_news` | `baidu_news` | `all` — **점유 쿼리의 `WHERE source_type` 필터값**. 기본값 없음(필수).
+- `--source` : `naver_news` | `naver_stock` | `daum_news` | `google_news` | `baidu_news` | `duckduckgo_news` | `all` — **점유 쿼리의 `WHERE source_type` 필터값**. 기본값 없음(필수).
 
 ```bash
 python -m app --source naver_news   # 네이버 발견자

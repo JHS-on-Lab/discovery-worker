@@ -24,7 +24,7 @@ CREATE TABLE t_crawl_runtime (
 CREATE TABLE t_keyword (
   id               BIGINT        NOT NULL AUTO_INCREMENT,
   keyword          VARCHAR(255)  NOT NULL COMMENT '검색어 또는 식별자. NAVER_STOCK 은 종목코드 (예: 005930)',
-  source_type      VARCHAR(20)   NOT NULL COMMENT 'NAVER_NEWS | DAUM_NEWS | GOOGLE_NEWS | BAIDU_NEWS | NAVER_STOCK',
+  source_type      VARCHAR(20)   NOT NULL COMMENT 'NAVER_NEWS | DAUM_NEWS | GOOGLE_NEWS | BAIDU_NEWS | NAVER_STOCK | DUCKDUCKGO_NEWS',
   display_name     VARCHAR(100)           COMMENT '사람이 읽기 쉬운 라벨. NAVER_STOCK: 종목명, GOOGLE: 다국어 키워드 설명 등',
   enabled          TINYINT(1)    NOT NULL DEFAULT 1   COMMENT 'false = 비활성화. disabled_reason 컬럼에 이유 기록',
   disabled_reason  VARCHAR(200)           COMMENT '비활성화 이유. 예: 수동 중지 | 상장폐지 | 연속 5회 403',

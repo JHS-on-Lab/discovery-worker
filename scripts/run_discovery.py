@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app import config
 
-_SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock")
+_SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock", "duckduckgo_news")
 KST = timezone(timedelta(hours=9))
 
 
@@ -71,6 +71,9 @@ def _make_adapter(source: str, max_pages: int | None):
     if pt == "BAIDU_NEWS":
         from app.adapters.baidu_news import BaiduNewsAdapter
         return BaiduNewsAdapter()
+    if pt == "DUCKDUCKGO_NEWS":
+        from app.adapters.duckduckgo_news import DuckDuckGoNewsAdapter
+        return DuckDuckGoNewsAdapter(**kwargs)
     raise ValueError(f"지원하지 않는 source: {source}")
 
 
