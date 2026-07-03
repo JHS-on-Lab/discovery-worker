@@ -12,6 +12,11 @@ GOOGLE_DISCOVERY_MODE 환경변수로 수집 방식을 선택한다.
     - 봇 감지로 search 모드가 막혔을 때 대안
     - 동일 Chrome 드라이버 재사용, 페이지네이션 없음
 
+GOOGLE_DISCOVERY_MODE=search(기본)일 때, 실제 봇 차단(캡차/챌린지 페이지, 단순
+결과 소진과 구분됨)이 감지되면 GOOGLE_BLOCK_COOLDOWN_SEC 동안 이 어댑터
+인스턴스(워커 프로세스 수명 동안 키워드 간 공유)가 자동으로 rss 모드로
+전환되고, 쿨다운이 지나면 자동으로 search 모드로 복귀를 시도한다.
+
 headless 모드는 Google Bot 감지에 걸리므로 headless=False 로 실행.
   Windows: 창을 화면 밖으로 이동
   Linux:   Xvfb 가상 디스플레이 사용 (deployment.md 참고)
@@ -135,6 +140,7 @@ class UCGoogleNewsAdapter:
         self._max_pages = max_pages or config.GOOGLE_MAX_PAGES
         self._delay_sec = delay_sec
         self._driver = None
+        self._search_blocked_until: datetime | None = None  # 봇 차단 감지 시 rss 폴백 만료 시각
 
     def _ensure_xvfb(self) -> None:
         """Linux 서버에 디스플레이가 없으면 Xvfb 가상 디스플레이를 시작한다."""
@@ -187,6 +193,18 @@ class UCGoogleNewsAdapter:
         mode = config.GOOGLE_DISCOVERY_MODE.lower()
         if mode == "rss":
             return self._discover_rss(keyword, cursor)
+
+        if self._search_blocked_until is not None:
+            if datetime.now(timezone.utc) < self._search_blocked_until:
+                # 최근 봇 차단 감지 — 쿨다운 동안 rss 로 임시 폴백
+                return self._discover_rss(keyword, cursor)
+            # 쿨다운 만료 — search 모드로 자동 복귀
+            _log.info(
+                "google search 모드 쿨다운 만료 — search 재시도",
+                extra={"component": "adapter"},
+            )
+            self._search_blocked_until = None
+
         return self._discover_search(keyword, cursor)
 
     # ------------------------------------------------------------------
@@ -218,11 +236,25 @@ class UCGoogleNewsAdapter:
         urls = _extract_search_urls(driver)
 
         if not urls:
-            _log.warning(
-                f"google blocked keyword='{keyword}' page={page} — bot detection or page structure change",
+            if _is_bot_block_page(driver):
+                self._search_blocked_until = (
+                    datetime.now(timezone.utc) + timedelta(seconds=config.GOOGLE_BLOCK_COOLDOWN_SEC)
+                )
+                _log.warning(
+                    f"google blocked keyword='{keyword}' page={page} — bot detection, "
+                    f"rss 로 {config.GOOGLE_BLOCK_COOLDOWN_SEC}s 동안 폴백",
+                    extra={"component": "adapter"},
+                )
+                raise BotBlockedError(f"google_news keyword='{keyword}' page={page}")
+
+            # 캡차/차단 신호 없이 결과만 없는 경우 — tbs=qdr:d(최근 1일) 필터상
+            # 해당 페이지 깊이까지 결과가 실제로 소진된 정상적인 상황. 차단이 아니므로
+            # 여기서 조용히 페이지네이션을 끝낸다 (봇 차단 백오프를 소비하지 않음).
+            _log.debug(
+                f"google no more results keyword='{keyword}' page={page}",
                 extra={"component": "adapter"},
             )
-            raise BotBlockedError(f"google_news keyword='{keyword}' page={page}")
+            return DiscoverResult(urls=[], next_cursor=None, has_more=False)
 
         has_more = len(urls) >= 8 and page < self._max_pages
         next_cursor = str(page + 1) if has_more else None
@@ -291,6 +323,31 @@ class UCGoogleNewsAdapter:
 
     def __del__(self) -> None:
         self.close()
+
+
+_BLOCK_PAGE_MARKERS = (
+    "unusual traffic",                          # "Our systems have detected unusual traffic ..."
+    "비정상적인 트래픽",                          # 위 문구의 한국어(hl=ko) 버전
+    "g-recaptcha",
+    "detected unusual traffic from your computer network",
+)
+
+
+def _is_bot_block_page(driver) -> bool:
+    """결과 0건이 실제 구글 봇 차단(캡차/챌린지 페이지)인지 확인한다.
+
+    tbs=qdr:d(최근 1일) 필터 특성상 페이지 깊이가 늘수록 결과가 정상적으로
+    소진돼 URL이 0개가 되는 경우가 흔하다. 이걸 전부 BotBlockedError로
+    처리하면 오탐이 쌓여 불필요한 백오프·키워드 포기가 발생하므로,
+    실제 차단 신호(리다이렉트 /sorry/, 캡차 문구)가 있을 때만 True.
+    """
+    try:
+        if "/sorry/" in (driver.current_url or ""):
+            return True
+        page_source = (driver.page_source or "").lower()
+    except Exception:
+        return False
+    return any(marker.lower() in page_source for marker in _BLOCK_PAGE_MARKERS)
 
 
 def _extract_search_urls(driver) -> list[str]:
