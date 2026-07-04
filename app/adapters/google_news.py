@@ -20,16 +20,25 @@ GOOGLE_DISCOVERY_MODE=search(기본)일 때, 실제 봇 차단(캡차/챌린지 
 headless 모드는 Google Bot 감지에 걸리므로 headless=False 로 실행.
   Windows: 창을 화면 밖으로 이동
   Linux:   Xvfb 가상 디스플레이 사용 (deployment.md 참고)
+
+행동 자연화(behavioral naturalization) — IP 로테이션 없이 탐지 신호를 줄이기 위한 조치:
+  - 영구 Chrome 프로필(GOOGLE_CHROME_PROFILE_DIR, WORKER_ID별 분리): 매 실행마다
+    빈 세션이 아니라 쿠키·로컬스토리지가 누적된 상태로 접속.
+  - 요청 간격에 랜덤 지터(_jitter_sleep) — 고정 간격은 그 자체로 자동화 신호.
+  - 결과 페이지 로드 후 스크롤 시뮬레이션(_simulate_reading) 후 DOM 파싱.
+  - Chrome 창 크기를 무작위 해상도 중에서 선택 — 워커 전체가 동일 해상도면 지문이 됨.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import random
 import sys
 import time
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode
 from xml.etree import ElementTree as ET
 
@@ -48,6 +57,24 @@ _GOOGLE_HOSTS = {
 
 _DEFAULT_MAX_PAGES = 5
 _DEFAULT_DELAY_SEC = 1.5
+
+# 창 크기를 워커마다 고정값으로 통일하면 그 자체가 지문이 되므로 흔한 해상도 중 무작위 선택
+_WINDOW_SIZES = ("1366,768", "1440,900", "1536,864", "1600,900", "1920,1080")
+
+
+def _jitter_sleep(base_sec: float, spread: float = 0.4) -> None:
+    """고정 간격 대신 자연스러운 편차를 준 대기. spread=0.4 → base의 ±40% 범위."""
+    time.sleep(max(0.1, random.uniform(base_sec * (1 - spread), base_sec * (1 + spread))))
+
+
+def _simulate_reading(driver) -> None:
+    """사람이 결과 페이지를 훑어보는 것처럼 스크롤 + 짧은 대기를 흉내낸다."""
+    try:
+        for _ in range(random.randint(1, 3)):
+            driver.execute_script(f"window.scrollBy(0, {random.randint(200, 600)});")
+            time.sleep(random.uniform(0.3, 0.9))
+    except Exception:
+        pass
 
 
 _LINUX_CHROME_BINARIES = (
@@ -179,13 +206,25 @@ class UCGoogleNewsAdapter:
             opts.add_argument("--disable-dev-shm-usage")
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-software-rasterizer")
+            opts.add_argument(f"--window-size={random.choice(_WINDOW_SIZES)}")
             if sys.platform == "win32":
                 opts.add_argument("--window-position=-32000,-32000")
+
+            user_data_dir = None
+            if config.GOOGLE_CHROME_PROFILE_DIR:
+                # 워커마다 독립된 프로필 디렉터리 — 매 실행마다 새 세션이 아니라
+                # 쿠키·로컬스토리지가 누적된 "돌아오는 사용자"처럼 보이게 한다.
+                # WORKER_ID 로 분리해 동시에 여러 워커가 같은 프로필을 잠그는 것을 방지.
+                profile_dir = Path(config.GOOGLE_CHROME_PROFILE_DIR) / (config.WORKER_ID or "default")
+                profile_dir.mkdir(parents=True, exist_ok=True)
+                user_data_dir = str(profile_dir.resolve())
+
             self._driver = uc.Chrome(
                 options=opts,
                 headless=False,
                 use_subprocess=True,
                 version_main=_detect_chrome_major(),
+                user_data_dir=user_data_dir,
             )
         return self._driver
 
@@ -218,7 +257,7 @@ class UCGoogleNewsAdapter:
             return DiscoverResult(urls=[], next_cursor=None, has_more=False)
 
         if page > 1:
-            time.sleep(self._delay_sec)
+            _jitter_sleep(self._delay_sec)
 
         params = urlencode({
             "q":     keyword,
@@ -231,7 +270,8 @@ class UCGoogleNewsAdapter:
 
         driver = self._ensure_driver()
         driver.get(f"{_SEARCH_URL}?{params}")
-        time.sleep(self._delay_sec)
+        _jitter_sleep(self._delay_sec)
+        _simulate_reading(driver)
 
         urls = _extract_search_urls(driver)
 
@@ -292,7 +332,7 @@ class UCGoogleNewsAdapter:
         for url in cbmi_urls:
             try:
                 driver.get(url)
-                time.sleep(self._delay_sec)
+                _jitter_sleep(self._delay_sec)
                 final = driver.current_url
                 if "google.com" not in urlparse(final).netloc:
                     resolved.append(final)

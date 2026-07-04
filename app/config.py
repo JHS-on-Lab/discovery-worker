@@ -67,6 +67,11 @@ GOOGLE_DISCOVERY_MODE   = _env("GOOGLE_DISCOVERY_MODE", "search")
 # rss 모드로 자동 전환했다가, 만료되면 search 모드로 자동 복귀한다.
 GOOGLE_BLOCK_COOLDOWN_SEC = _env_int("GOOGLE_BLOCK_COOLDOWN_SEC", 3600)
 
+# Chrome 영구 프로필 저장 경로 (WORKER_ID별 하위 디렉터리로 분리).
+# 매번 새 세션이 아니라 쿠키·로컬스토리지가 쌓인 상태로 접속해 탐지 신호를 줄인다.
+# 빈 문자열로 설정하면 임시 프로필(매 실행 초기화)을 사용한다.
+GOOGLE_CHROME_PROFILE_DIR = _env("GOOGLE_CHROME_PROFILE_DIR", "./chrome_profile")
+
 # Daum 뉴스 수집 범위 (기본: 전체 언론사)
 # false 로 설정하면 뉴스제휴 언론사만 수집 (SHOW_DNS=1)
 DAUM_NEWS_ALL         = _env_bool("DAUM_NEWS_ALL", True)
