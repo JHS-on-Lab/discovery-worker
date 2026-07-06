@@ -10,6 +10,15 @@
       cp.news.search.daum.net/p/{id} — 비제휴 언론사 (리다이렉트 → 실제 콘텐츠)
   - period 파라미터: d=1일, w=1주, m=1개월
 
+리다이렉트 해석(cp.news.search.daum.net):
+  extraction-worker 의 domain rule 조회는 fetch 이전, t_crawl_url 에 저장된
+  원본 host 기준으로 render_mode 를 이미 결정해버린다. cp.news.search.daum.net
+  URL 을 그대로 저장하면 httpx 가 리다이렉트는 따라가도(fetch 자체는 성공)
+  최종 목적지 도메인의 domain rule(예: headless 필요 여부)은 절대 적용될 수
+  없다 — 이미 늦었기 때문. 그래서 발견 단계에서 미리 실제 목적지로 해석해
+  저장한다. HEAD 요청은 이 서비스에서 보안 경고 페이지로 리다이렉트되는 등
+  신뢰할 수 없어(관찰됨) GET 을 사용한다.
+
 커서: 페이지 번호 (1→2→3→...). None이면 첫 페이지.
 """
 
@@ -75,6 +84,9 @@ class DaumNewsAdapter(PaginatedAdapter):
             )
             raise BotBlockedError(f"daum_news keyword='{keyword}' page={page}")
 
+        with make_client(referer="https://search.daum.net/") as resolve_client:
+            urls = _resolve_cp_redirects(urls, resolve_client)
+
         has_more    = len(urls) >= 10 and page < self._max_pages
         next_cursor = str(page + 1) if has_more else None
 
@@ -86,6 +98,29 @@ def _drop_f_param(url: str) -> str:
     p = urlparse(url)
     qs = [(k, v) for k, v in parse_qsl(p.query) if k != "f"]
     return urlunparse(p._replace(query=urlencode(qs)))
+
+
+def _resolve_cp_redirects(urls: list[str], client) -> list[str]:
+    """cp.news.search.daum.net URL 을 실제 언론사 URL 로 미리 해석한다.
+
+    v.daum.net URL 은 이미 최종 목적지이므로 건드리지 않는다.
+    해석 실패(네트워크 오류, 리다이렉트 안 됨 등) 시 원본 URL 을 그대로 둔다 —
+    최종 목적지를 못 알아냈다고 발견 자체를 실패시키지 않고, extraction 단계의
+    자체 재시도에 맡긴다.
+    """
+    resolved = []
+    for url in urls:
+        if "cp.news.search.daum.net/p/" not in url:
+            resolved.append(url)
+            continue
+        try:
+            resp = client.get(url)
+            final = str(resp.url)
+        except Exception:
+            resolved.append(url)
+            continue
+        resolved.append(final if final and "cp.news.search.daum.net" not in final else url)
+    return resolved
 
 
 def _parse_urls(html: str) -> tuple[list[str], bool]:
