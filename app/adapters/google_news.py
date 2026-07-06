@@ -25,6 +25,8 @@ headless 모드는 Google Bot 감지에 걸리므로 headless=False 로 실행.
   - 영구 Chrome 프로필(GOOGLE_CHROME_PROFILE_DIR, WORKER_ID별 분리): 매 실행마다
     빈 세션이 아니라 쿠키·로컬스토리지가 누적된 상태로 접속.
   - 요청 간격에 랜덤 지터(_jitter_sleep) — 고정 간격은 그 자체로 자동화 신호.
+    페이지 번호와 무관하게 매 요청 전 적용해 키워드 전환 시에도 딜레이 없이
+    바로 이어지지 않게 한다.
   - 결과 페이지 로드 후 스크롤 시뮬레이션(_simulate_reading) 후 DOM 파싱.
   - Chrome 창 크기를 무작위 해상도 중에서 선택 — 워커 전체가 동일 해상도면 지문이 됨.
 """
@@ -256,8 +258,9 @@ class UCGoogleNewsAdapter:
         if page > self._max_pages:
             return DiscoverResult(urls=[], next_cursor=None, has_more=False)
 
-        if page > 1:
-            _jitter_sleep(self._delay_sec)
+        # 페이지 번호와 무관하게 매 요청 전 지터 — page==1(새 키워드 시작)에서도
+        # 적용해야 이전 키워드 처리 직후 딜레이 없이 바로 이어지는 걸 막는다.
+        _jitter_sleep(self._delay_sec)
 
         params = urlencode({
             "q":     keyword,
