@@ -50,8 +50,12 @@ python scripts/run_discovery.py --source naver_news --keyword 삼성전자 --max
 
 ## DB / 마이그레이션
 
+`crawlerdb`(t_domain, t_crawl_url, t_keyword, t_collection_log) 스키마 마이그레이션은
+이 프로젝트가 아니라 별도 저장소 `../crawlerdb-migrations`에서 관리한다.
+discovery-worker는 더 이상 alembic을 포함하지 않는다.
+
 ```bash
-# 마이그레이션 적용
+cd ../crawlerdb-migrations
 alembic upgrade head
 
 alembic current
