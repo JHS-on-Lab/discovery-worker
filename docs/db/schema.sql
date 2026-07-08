@@ -70,6 +70,7 @@ CREATE TABLE t_crawl_url (
 
 CREATE TABLE t_domain (
   host              VARCHAR(255)  NOT NULL,
+  excluded          TINYINT(1)    NOT NULL DEFAULT 0,
   rules_json        JSON,
   rules_enabled     TINYINT(1)    NOT NULL DEFAULT 1,
   rules_version     INT           NOT NULL DEFAULT 1,

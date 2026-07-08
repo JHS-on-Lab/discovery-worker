@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 from sqlalchemy import Engine, text
 
 from app.domain_logic.url_normalizer import normalize, url_hash
+from app.repository.domain_repo import DomainRepo
 
 KST = timezone(timedelta(hours=9))
 
@@ -46,6 +47,7 @@ _INSERT_SQL = text("""
 class CrawlUrlRepo:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
+        self._domain_repo = DomainRepo(engine)
 
     # ------------------------------------------------------------------
     # 발견 단계
@@ -60,16 +62,17 @@ class CrawlUrlRepo:
         """
         URL 목록을 discovered 상태로 bulk insert.
         중복(url_hash)은 ON DUPLICATE KEY UPDATE로 조용히 무시.
+        t_domain.excluded=1 인 host 는 애초에 insert 대상에서 제외한다.
         반환: (inserted, skipped)
         """
         if not raw_urls:
             return 0, 0
 
         now = datetime.now(KST)
-        rows = []
+        candidates = []
         for raw in raw_urls:
             norm = normalize(raw)
-            rows.append({
+            candidates.append({
                 "url":        norm,
                 "hash":       url_hash(norm),
                 "host":       urlparse(norm).netloc,
@@ -79,8 +82,15 @@ class CrawlUrlRepo:
                 "created_at": now,
             })
 
+        excluded_hosts = self._domain_repo.get_excluded_hosts(
+            list({row["host"] for row in candidates})
+        )
+        rows = [row for row in candidates if row["host"] not in excluded_hosts]
+        if not rows:
+            return 0, len(candidates)
+
         with self._engine.begin() as conn:
             result = conn.execute(_INSERT_SQL, rows)
 
         inserted = result.rowcount
-        return inserted, len(rows) - inserted
+        return inserted, len(candidates) - inserted

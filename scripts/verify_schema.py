@@ -29,7 +29,7 @@ EXPECTED_COLUMNS = {
         "host", "rules_json", "rules_enabled", "rules_version",
         "crawl_delay_ms", "render_mode", "proxy_tier",
         "cooldown_until", "recent_fail_count", "success_rate", "avg_body_len",
-        "updated_at", "updated_by",
+        "updated_at", "updated_by", "excluded",
     },
     "t_collection_log": {
         "id", "run_type", "run_date", "keyword_id", "source_type", "worker_id",
