@@ -1,15 +1,37 @@
 ﻿"""
 스키마 검증: 테이블·컬럼·인덱스·제약 확인.
-실행: python scripts/verify_schema.py
+
+실행:
+  python scripts/verify_schema.py           # .env.{APP_ENV} 설정대로 (TUNNEL_ENABLED=true 면 SSH 터널 경유)
+  python scripts/verify_schema.py --direct  # SSH 터널 없이 RDS에 직접 접속해서 검증
+                                             # (RDS와 같은 네트워크에 있는 서버, 예: dev-app-host에서 사용)
 """
 
+import argparse
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import text, inspect
+from sqlalchemy import text, inspect, create_engine
+from app import config
 from app.repository.db import db_context
+
+
+@contextmanager
+def _direct_engine():
+    """SSH 터널 없이 RDS_HOST:RDS_PORT로 바로 접속하는 엔진 (TUNNEL_ENABLED 설정 무시)."""
+    dsn = (
+        f"mysql+pymysql://{config.RDS_USER}:{config.RDS_PASSWORD}"
+        f"@{config.RDS_HOST}:{config.RDS_PORT}/{config.RDS_DB}"
+        f"?charset=utf8mb4"
+    )
+    engine = create_engine(dsn, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 EXPECTED_TABLES = {"t_keyword", "t_crawl_url", "t_domain", "t_collection_log"}
 
@@ -50,9 +72,15 @@ EXPECTED_INDEXES = {
 
 
 def main():
-    ok = True
+    p = argparse.ArgumentParser(description="스키마 검증")
+    p.add_argument("--direct", action="store_true",
+                   help="SSH 터널 없이 RDS에 직접 접속 (TUNNEL_ENABLED 설정 무시)")
+    args = p.parse_args()
 
-    with db_context() as engine:
+    ok = True
+    connect = _direct_engine if args.direct else db_context
+
+    with connect() as engine:
         insp   = inspect(engine)
         tables = set(insp.get_table_names())
 
