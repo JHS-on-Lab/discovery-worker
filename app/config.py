@@ -70,7 +70,7 @@ GOOGLE_BLOCK_COOLDOWN_SEC = _env_int("GOOGLE_BLOCK_COOLDOWN_SEC", 3600)
 # Chrome 영구 프로필 저장 경로 (WORKER_ID별 하위 디렉터리로 분리).
 # 매번 새 세션이 아니라 쿠키·로컬스토리지가 쌓인 상태로 접속해 탐지 신호를 줄인다.
 # 빈 문자열로 설정하면 임시 프로필(매 실행 초기화)을 사용한다.
-GOOGLE_CHROME_PROFILE_DIR = _env("GOOGLE_CHROME_PROFILE_DIR", "./chrome_profile")
+GOOGLE_CHROME_PROFILE_DIR = _env("GOOGLE_CHROME_PROFILE_DIR", "./chrome_profile_google")
 
 # 페이지 로드 상한(초). 초과 시 TimeoutException 발생 — driver.get() 이 무한 대기하며
 # chromedriver 커맨드 서버 자체를 응답 불능으로 만드는 것을 방지한다.

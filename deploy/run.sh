@@ -40,7 +40,8 @@ ENV_FILE="${PROJECT_ROOT}/.env.${APP_ENV}"
 
 LOG_DIR="${HOME}/apps/data/discovery-worker/logs"
 OUTPUT_DIR="${HOME}/apps/data/discovery-worker/output"
-CHROME_PROFILE_DIR="${HOME}/apps/data/discovery-worker/chrome_profile"
+GOOGLE_CHROME_PROFILE_DIR="${HOME}/apps/data/discovery-worker/chrome_profile_google"
+BAIDU_CHROME_PROFILE_DIR="${HOME}/apps/data/discovery-worker/chrome_profile_baidu"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
     echo "오류: 환경 설정 파일을 찾을 수 없습니다: ${ENV_FILE}"
@@ -50,7 +51,8 @@ fi
 
 mkdir -p "${LOG_DIR}"
 mkdir -p "${OUTPUT_DIR}"
-mkdir -p "${CHROME_PROFILE_DIR}"
+mkdir -p "${GOOGLE_CHROME_PROFILE_DIR}"
+mkdir -p "${BAIDU_CHROME_PROFILE_DIR}"
 
 CONTAINER_NAME="${WORKER_ID}"
 IMAGE="discovery-worker:latest"
@@ -77,7 +79,8 @@ docker run \
     -e WORKER_ID="${WORKER_ID}" \
     -v "${LOG_DIR}:/app/logs" \
     -v "${OUTPUT_DIR}:/app/output" \
-    -v "${CHROME_PROFILE_DIR}:/app/chrome_profile" \
+    -v "${GOOGLE_CHROME_PROFILE_DIR}:/app/chrome_profile_google" \
+    -v "${BAIDU_CHROME_PROFILE_DIR}:/app/chrome_profile_baidu" \
     "${IMAGE}" \
     python -m app --source "${SOURCE}"
 
