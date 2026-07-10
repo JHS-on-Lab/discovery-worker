@@ -76,6 +76,12 @@ GOOGLE_CHROME_PROFILE_DIR = _env("GOOGLE_CHROME_PROFILE_DIR", "./chrome_profile"
 # chromedriver 커맨드 서버 자체를 응답 불능으로 만드는 것을 방지한다.
 GOOGLE_PAGE_LOAD_TIMEOUT_SEC = _env_int("GOOGLE_PAGE_LOAD_TIMEOUT_SEC", 30)
 
+# Chrome 영구 프로필 저장 경로 (Baidu 전용, WORKER_ID별 하위 디렉터리로 분리).
+BAIDU_CHROME_PROFILE_DIR = _env("BAIDU_CHROME_PROFILE_DIR", "./chrome_profile_baidu")
+
+# 페이지 로드 상한(초).
+BAIDU_PAGE_LOAD_TIMEOUT_SEC = _env_int("BAIDU_PAGE_LOAD_TIMEOUT_SEC", 30)
+
 # Daum 뉴스 수집 범위 (기본: 전체 언론사)
 # false 로 설정하면 뉴스제휴 언론사만 수집 (SHOW_DNS=1)
 DAUM_NEWS_ALL         = _env_bool("DAUM_NEWS_ALL", True)
