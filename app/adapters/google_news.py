@@ -44,8 +44,6 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode
 from xml.etree import ElementTree as ET
 
-from selenium.common.exceptions import TimeoutException, WebDriverException
-
 from app import config
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
@@ -231,6 +229,12 @@ class UCGoogleNewsAdapter:
                 user_data_dir=user_data_dir,
             )
             self._driver.set_page_load_timeout(config.GOOGLE_PAGE_LOAD_TIMEOUT_SEC)
+            # set_page_load_timeout 은 "탐색(navigation)" 명령에만 적용된다. chromedriver
+            # 자체가 응답 불능이 되면(브라우저 크래시/좀비 프로세스 등) current_url 읽기
+            # 같은 다른 명령들은 이 상한의 영향을 받지 않고 HTTP 클라이언트의 기본
+            # 소켓 타임아웃(환경에 따라 매우 길거나 없을 수 있음)에 그대로 노출된다.
+            # 모든 webdriver 명령에 동일한 상한을 명시적으로 강제한다.
+            self._driver.command_executor.client_config.timeout = config.GOOGLE_PAGE_LOAD_TIMEOUT_SEC
         return self._driver
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
@@ -277,8 +281,10 @@ class UCGoogleNewsAdapter:
         driver = self._ensure_driver()
         try:
             driver.get(f"{_SEARCH_URL}?{params}")
-        except (TimeoutException, WebDriverException) as exc:
-            # 페이지 로드가 상한을 넘겼거나 chromedriver 자체가 응답 불능 상태.
+        except Exception as exc:
+            # TimeoutException/WebDriverException 뿐 아니라, chromedriver 커맨드
+            # 채널 자체가 죽으면 urllib3.exceptions.ReadTimeoutError 등이 selenium을
+            # 거치지 않고 그대로 올라온다 — 넓게 잡아 이 driver 를 무조건 폐기한다.
             # 이 driver 는 이후에도 계속 멈춰있을 수 있으므로 폐기하고, 다음 호출에서
             # _ensure_driver() 가 새 인스턴스를 띄우게 한다.
             _log.warning(
@@ -344,10 +350,16 @@ class UCGoogleNewsAdapter:
         return DiscoverResult(urls=urls, next_cursor=None, has_more=False)
 
     def _resolve_cbmi(self, cbmi_urls: list[str]) -> list[str]:
-        """Chrome으로 CBMi URL 탐색 → 최종 언론사 URL 수집."""
+        """Chrome으로 CBMi URL 탐색 → 최종 언론사 URL 수집.
+
+        중간에 하나라도 hang/실패하면 driver 를 폐기하고 남은 URL 은 포기한다 —
+        이미 좀비가 된 driver 로 나머지 수십 건을 하나씩 타임아웃날 때까지
+        기다리는 건 시간 낭비이자, 다음 키워드까지 워커를 묶어두는 원인이 된다.
+        """
         driver = self._ensure_driver()
         resolved = []
-        for url in cbmi_urls:
+        total = len(cbmi_urls)
+        for i, url in enumerate(cbmi_urls, start=1):
             try:
                 driver.get(url)
                 _jitter_sleep(self._delay_sec)
@@ -360,7 +372,19 @@ class UCGoogleNewsAdapter:
                         extra={"component": "adapter"},
                     )
             except Exception as exc:
-                _log.debug(f"cbmi navigate failed url={url[:60]} err={exc}")
+                _log.warning(
+                    f"cbmi navigate hung at {i}/{total} — resetting driver, "
+                    f"남은 {total - i}건 포기 (url={url[:60]} err={exc})",
+                    extra={"component": "adapter"},
+                )
+                self.close()
+                break
+
+            if i % 5 == 0 or i == total:
+                _log.debug(
+                    f"cbmi progress {i}/{total} — resolved {len(resolved)}",
+                    extra={"component": "adapter"},
+                )
         return resolved
 
     # ------------------------------------------------------------------

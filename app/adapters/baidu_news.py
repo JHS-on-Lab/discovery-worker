@@ -33,8 +33,6 @@ import time
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
-from selenium.common.exceptions import TimeoutException, WebDriverException
-
 from app import config
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
@@ -205,6 +203,11 @@ class BaiduNewsAdapter:
                 user_data_dir=user_data_dir,
             )
             self._driver.set_page_load_timeout(config.BAIDU_PAGE_LOAD_TIMEOUT_SEC)
+            # set_page_load_timeout 은 탐색(navigation) 명령에만 적용된다. chromedriver
+            # 자체가 응답 불능이 되면 다른 명령(current_url 읽기 등)은 이 상한과 무관하게
+            # HTTP 클라이언트의 기본 소켓 타임아웃에 노출되므로, 모든 webdriver 명령에
+            # 동일한 상한을 명시적으로 강제한다.
+            self._driver.command_executor.client_config.timeout = config.BAIDU_PAGE_LOAD_TIMEOUT_SEC
         return self._driver
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
@@ -229,7 +232,10 @@ class BaiduNewsAdapter:
         driver = self._ensure_driver()
         try:
             driver.get(f"{_SEARCH_URL}?{params}")
-        except (TimeoutException, WebDriverException) as exc:
+        except Exception as exc:
+            # TimeoutException/WebDriverException 뿐 아니라 chromedriver 커맨드 채널
+            # 자체가 죽으면 urllib3 저수준 예외가 selenium을 거치지 않고 그대로 올라온다
+            # — 넓게 잡아 이 driver 를 무조건 폐기한다.
             _log.warning(
                 f"baidu page load hung keyword='{keyword}' page={page_num} — resetting driver ({exc})",
                 extra={"component": "adapter"},
