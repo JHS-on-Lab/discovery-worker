@@ -72,6 +72,10 @@ GOOGLE_BLOCK_COOLDOWN_SEC = _env_int("GOOGLE_BLOCK_COOLDOWN_SEC", 3600)
 # 빈 문자열로 설정하면 임시 프로필(매 실행 초기화)을 사용한다.
 GOOGLE_CHROME_PROFILE_DIR = _env("GOOGLE_CHROME_PROFILE_DIR", "./chrome_profile")
 
+# 페이지 로드 상한(초). 초과 시 TimeoutException 발생 — driver.get() 이 무한 대기하며
+# chromedriver 커맨드 서버 자체를 응답 불능으로 만드는 것을 방지한다.
+GOOGLE_PAGE_LOAD_TIMEOUT_SEC = _env_int("GOOGLE_PAGE_LOAD_TIMEOUT_SEC", 30)
+
 # Daum 뉴스 수집 범위 (기본: 전체 언론사)
 # false 로 설정하면 뉴스제휴 언론사만 수집 (SHOW_DNS=1)
 DAUM_NEWS_ALL         = _env_bool("DAUM_NEWS_ALL", True)

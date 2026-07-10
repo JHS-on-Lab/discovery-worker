@@ -44,6 +44,8 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode
 from xml.etree import ElementTree as ET
 
+from selenium.common.exceptions import TimeoutException, WebDriverException
+
 from app import config
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
@@ -228,6 +230,7 @@ class UCGoogleNewsAdapter:
                 version_main=_detect_chrome_major(),
                 user_data_dir=user_data_dir,
             )
+            self._driver.set_page_load_timeout(config.GOOGLE_PAGE_LOAD_TIMEOUT_SEC)
         return self._driver
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
@@ -272,7 +275,19 @@ class UCGoogleNewsAdapter:
         })
 
         driver = self._ensure_driver()
-        driver.get(f"{_SEARCH_URL}?{params}")
+        try:
+            driver.get(f"{_SEARCH_URL}?{params}")
+        except (TimeoutException, WebDriverException) as exc:
+            # 페이지 로드가 상한을 넘겼거나 chromedriver 자체가 응답 불능 상태.
+            # 이 driver 는 이후에도 계속 멈춰있을 수 있으므로 폐기하고, 다음 호출에서
+            # _ensure_driver() 가 새 인스턴스를 띄우게 한다.
+            _log.warning(
+                f"google page load hung keyword='{keyword}' page={page} — resetting driver ({exc})",
+                extra={"component": "adapter"},
+            )
+            self.close()
+            raise
+
         _jitter_sleep(self._delay_sec)
         _simulate_reading(driver)
 
