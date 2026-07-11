@@ -68,13 +68,11 @@ alembic downgrade -1
 ```bash
 # 스키마 검증
 python scripts/verify_schema.py
+python scripts/verify_schema.py --direct  # SSH 터널 없이 RDS에 직접 접속(같은 네트워크의 서버에서)
 
 # DB 연결 상태 확인
 python scripts/healthcheck.py
-
-# 테이블 truncate (주의)
-python scripts/truncate_table.py --table t_crawl_url
-python scripts/truncate_table.py --all
+python scripts/healthcheck.py --direct
 ```
 
 ## Docker Compose 예시

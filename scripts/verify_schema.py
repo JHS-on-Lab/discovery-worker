@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text, inspect, create_engine
+from sqlalchemy.engine import URL
 from app import config
 from app.repository.db import db_context
 
@@ -22,10 +23,16 @@ from app.repository.db import db_context
 @contextmanager
 def _direct_engine():
     """SSH 터널 없이 RDS_HOST:RDS_PORT로 바로 접속하는 엔진 (TUNNEL_ENABLED 설정 무시)."""
-    dsn = (
-        f"mysql+pymysql://{config.RDS_USER}:{config.RDS_PASSWORD}"
-        f"@{config.RDS_HOST}:{config.RDS_PORT}/{config.RDS_DB}"
-        f"?charset=utf8mb4"
+    # URL.create() 는 username/password 를 자동으로 URL-encoding 한다.
+    # f-string 조립은 비밀번호에 '@' 같은 특수문자가 있으면 DSN 파싱 자체가 깨진다.
+    dsn = URL.create(
+        "mysql+pymysql",
+        username=config.RDS_USER,
+        password=config.RDS_PASSWORD,
+        host=config.RDS_HOST,
+        port=config.RDS_PORT,
+        database=config.RDS_DB,
+        query={"charset": "utf8mb4"},
     )
     engine = create_engine(dsn, pool_pre_ping=True, connect_args={"connect_timeout": 5})
     try:

@@ -67,10 +67,10 @@ def _make_adapter(source: str, max_pages: int | None):
         return NaverStockAdapter(**kwargs)
     if pt == "GOOGLE_NEWS":
         from app.adapters.google_news import UCGoogleNewsAdapter
-        return UCGoogleNewsAdapter()
+        return UCGoogleNewsAdapter(**kwargs)
     if pt == "BAIDU_NEWS":
         from app.adapters.baidu_news import BaiduNewsAdapter
-        return BaiduNewsAdapter()
+        return BaiduNewsAdapter(**kwargs)
     if pt == "DUCKDUCKGO_NEWS":
         from app.adapters.duckduckgo_news import DuckDuckGoNewsAdapter
         return DuckDuckGoNewsAdapter(**kwargs)

@@ -66,6 +66,8 @@ flowchart LR
 ```
 app/
   adapters/            # SourceAdapter 구현: naver_news.py, naver_stock.py, daum_news.py, google_news.py, baidu_news.py, duckduckgo_news.py
+                       # _process_kill.py(Chrome 프로세스 강제종료), _profile_lock.py(프로필 디렉터리 flock) 는
+                       # google_news/baidu_news 가 공유하는 브라우저 자동화 헬퍼
   fetch/               # HTTP 클라이언트: _client.py (발견 어댑터 공용)
   repository/          # RDB 접근: keyword_repo.py, crawl_url_repo.py, collection_log_repo.py
   scheduling/          # discovery dispatcher, overlap lock
@@ -258,13 +260,18 @@ erDiagram
 | 네이버 | 1일·1주 | 가능 | 증분 중단(정렬 신뢰) | static 우선 | 검색 결과가 무한 스크롤 → 9.5 |
 | 다음 | 1일·1주 | 가능 | 증분 중단(정렬 신뢰) | static 우선 | SHOW_DNS=0 쿠키로 전체 언론사 수집. 제휴사(v.daum.net/v/) + 비제휴사(cp.news.search.daum.net/p/) 두 URL 패턴 처리 |
 | 구글 | 1일·1주(`tbs=qdr:d` 등) | **없음** | 집합 한정 + 날짜 판정 + 상한 | **headless** | 안티봇 가장 공격적, 보수적 속도 |
-| 바이두 | 분석 필요 | 분석 필요 | 분석 후 결정 | headless 가능성 높음 | 9.4 |
+| 바이두 | 없음(분석 결과 미발견) | 불가(초점순만) | 증분 중단 | **비headless**(undetected-chromedriver) | 9.4, 2026-07-10 구현 완료·실서버 캡차 검증 진행 중 |
 
 기간 필터 파라미터(예: 구글 `tbs=qdr:d`)는 비공식이라 바뀔 수 있으므로 **코드에 하드코딩하지 말고 설정값으로** 둔다. 필터가 깨지거나 무시되어도 폭주하지 않도록, 필터는 최적화 수단으로만 쓰고 페이지/스크롤 상한과 컷오프 판정을 항상 보험으로 깔아둔다.
 
-### 8.4 바이두 뉴스 (미확정)
+### 8.4 바이두 뉴스 (구현 완료, 실서버 검증 진행 중)
 
-바이두 뉴스는 중국 검색 포털로 별도 분석이 필요하다. 확인 항목: ① 기간 필터 지원 여부·단위, ② 최신순 정렬 가능 여부, ③ 해외 접속 차단 여부 및 프록시 필요성(중국 IP 필요 가능성 높음), ④ headless 필요 여부. ①·② 결과에 따라 네이버형(증분 중단) 또는 구글형(집합 한정)으로 떨어진다.
+`app/adapters/baidu_news.py`. 분석 결과:
+- 검색: `www.baidu.com/s?tn=news&cl=2&word=...`, 페이지네이션은 `pn` offset(0,10,20,...).
+- 결과 링크: 대부분 `baijiahao.baidu.com`(바이두 자체 게시 플랫폼) — daum의 리다이렉트 wrapper와 달리 이 자체가 최종 콘텐츠라 리다이렉트 해석 없이 그대로 저장한다.
+- 기간 필터: 확인 안 됨(초점순 정렬만 노출). 최신순 정렬도 불가능해 보임 — 네이버/다음형이 아니라 구글형(집합 한정)에 가깝다.
+- **봇 차단**: 순수 HTTP 요청(httpx)은 실서버 IP에서도 100% `wappass.baidu.com` 캡차로 리다이렉트됨 — 확인됨. 순정 헤드리스 Chrome(자동화 흔적 은닉 없이)도 동일 IP에서 캡차에 걸림 — IP 평판 기반 차단으로 추정. google_news.py 와 동일한 undetected-chromedriver + 행동 자연화(영구 프로필, 지터, 스크롤 시뮬레이션) 적용해 실서버에서 통과 여부 확인 중.
+- 파싱 셀렉터(`#content_left h3 a`)는 캡차를 통과한 실제 페이지로 아직 검증 못 함 — 미검증 상태.
 
 ### 8.5 무한 스크롤 처리 (네이버 등)
 
@@ -426,6 +433,8 @@ Traceback (most recent call last):
 ### 12.4 생존 신호(하트비트)
 
 각 워커는 주기적으로(예: `HEARTBEAT_INTERVAL_SECONDS`) 진행 카운터(처리/성공/실패 수, 마지막 항목)를 정보 로그에 남긴다. 워커가 "멈춘 듯" 보일 때, **정보 로그의 마지막 하트비트 + `error.log`의 마지막 에러**를 함께 보면 "언제까지 살아 있었고 무엇 때문에 멈췄나"가 드러난다. (DB 쪽에서는 `claimed_at`이 멈춘 row를 reaper가 회수하므로(10.3-4), 로그는 원인 진단, DB는 복구를 담당한다.)
+
+**Docker HEALTHCHECK 파일(`/tmp/healthcheck`) 갱신은 별도 백그라운드 스레드가 담당한다** (`app/scheduling/dispatcher.py:_start_healthcheck_thread`). 메인 루프의 로그 하트비트(위 문단)와 달리, 이 파일 갱신은 한 키워드 처리가 얼마나 오래 걸리든 `HEARTBEAT_INTERVAL_SECONDS` 주기로 계속 갱신된다 — google RSS 폴백처럼 한 키워드 안에서 URL 수십~백 개를 순차 처리하느라 다음 키워드로 넘어가기까지 수 분 걸리는 경우에도, Docker가 이를 hang으로 오판해 컨테이너를 강제 재시작하지 않도록 하기 위함이다(2026-07-11). google_news/baidu_news 어댑터에 이미 걸려있는 page-load 타임아웃 덕에 메인 스레드가 진짜로 무한정 멈추는 경우가 없어서, 이렇게 분리해도 실제 hang을 놓칠 위험은 낮다고 판단했다.
 
 ### 12.5 운영 편의
 
