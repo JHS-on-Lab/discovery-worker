@@ -45,6 +45,7 @@ from urllib.parse import urlparse, parse_qs, urlencode
 from xml.etree import ElementTree as ET
 
 from app import config
+from app.adapters._process_kill import kill_process_tree
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
 _log = logging.getLogger(__name__)
@@ -393,6 +394,7 @@ class UCGoogleNewsAdapter:
 
     def close(self) -> None:
         if self._driver:
+            browser_pid = getattr(self._driver, "browser_pid", None)
             try:
                 self._driver.quit()
             except Exception:
@@ -401,6 +403,9 @@ class UCGoogleNewsAdapter:
                 self._driver.quit = lambda *a, **kw: None
             except Exception:
                 pass
+            # uc.Chrome.quit() 은 브라우저에 SIGTERM 만 보내고 종료를 확인하지 않는다 —
+            # 특히 hang 직후 정리하는 이 경로에서 응답 없이 orphan 으로 남기 쉽다.
+            kill_process_tree(browser_pid)
             self._driver = None
 
     def __del__(self) -> None:

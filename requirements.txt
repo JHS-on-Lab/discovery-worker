@@ -15,9 +15,10 @@ httpx==0.28.1
 # HTML 파싱 (네이버/다음 어댑터)
 selectolax==0.4.10
 
-# Google 뉴스 수집 (undetected-chromedriver)
+# Google/Baidu 뉴스 수집 (undetected-chromedriver)
 undetected-chromedriver>=3.5.5
 selenium>=4.0.0
+psutil>=5.9.0  # 응답 없는 Chrome 프로세스 트리 강제 종료
 setuptools  # Python 3.12+ 에서 distutils 대체
 
 # Dev / Test
