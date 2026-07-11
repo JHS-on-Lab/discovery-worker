@@ -34,6 +34,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
 from app import config
+from app.adapters import _profile_lock
 from app.adapters._process_kill import kill_process_tree
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
@@ -149,6 +150,8 @@ class BaiduNewsAdapter:
         self._max_pages = max_pages or config.BAIDU_MAX_PAGES
         self._delay_sec = delay_sec
         self._driver = None
+        self._user_data_dir: str | None = None  # close() 에서 PID 재사용 방지 확인에 사용
+        self._profile_lock_file = None  # WORKER_ID 중복 감지용 flock 파일 핸들
 
     def _ensure_xvfb(self) -> None:
         if sys.platform == "win32":
@@ -195,20 +198,35 @@ class BaiduNewsAdapter:
                 profile_dir = Path(config.BAIDU_CHROME_PROFILE_DIR) / (config.WORKER_ID or "default")
                 profile_dir.mkdir(parents=True, exist_ok=True)
                 user_data_dir = str(profile_dir.resolve())
+                # WORKER_ID 가 실수로 중복되면 위 분리만으로는 못 막는다 — flock 으로
+                # 실제 배타적 잠금을 걸어, 이미 다른 프로세스가 쓰고 있으면 애매한
+                # hang 대신 여기서 바로 명확하게 실패한다.
+                self._profile_lock_file = _profile_lock.acquire(user_data_dir, config.WORKER_ID)
 
-            self._driver = uc.Chrome(
-                options=opts,
-                headless=False,
-                use_subprocess=True,
-                version_main=_detect_chrome_major(),
-                user_data_dir=user_data_dir,
-            )
-            self._driver.set_page_load_timeout(config.BAIDU_PAGE_LOAD_TIMEOUT_SEC)
-            # set_page_load_timeout 은 탐색(navigation) 명령에만 적용된다. chromedriver
-            # 자체가 응답 불능이 되면 다른 명령(current_url 읽기 등)은 이 상한과 무관하게
-            # HTTP 클라이언트의 기본 소켓 타임아웃에 노출되므로, 모든 webdriver 명령에
-            # 동일한 상한을 명시적으로 강제한다.
-            self._driver.command_executor.client_config.timeout = config.BAIDU_PAGE_LOAD_TIMEOUT_SEC
+            self._user_data_dir = user_data_dir
+
+            try:
+                self._driver = uc.Chrome(
+                    options=opts,
+                    headless=False,
+                    use_subprocess=True,
+                    version_main=_detect_chrome_major(),
+                    user_data_dir=user_data_dir,
+                )
+                self._driver.set_page_load_timeout(config.BAIDU_PAGE_LOAD_TIMEOUT_SEC)
+                # set_page_load_timeout 은 탐색(navigation) 명령에만 적용된다. chromedriver
+                # 자체가 응답 불능이 되면 다른 명령(current_url 읽기 등)은 이 상한과 무관하게
+                # HTTP 클라이언트의 기본 소켓 타임아웃에 노출되므로, 모든 webdriver 명령에
+                # 동일한 상한을 명시적으로 강제한다.
+                self._driver.command_executor.client_config.timeout = config.BAIDU_PAGE_LOAD_TIMEOUT_SEC
+            except Exception:
+                # 락을 잡은 뒤 Chrome 기동 자체가 실패하면, 락을 안 풀고 두면 같은
+                # 프로세스의 다음 재시도가 자기 자신의 flock 에 걸려 self-lockout
+                # 난다(flock 은 open file description 단위라 같은 프로세스라도 다시
+                # 열면 막힌다). 반드시 풀어준다.
+                _profile_lock.release(self._profile_lock_file)
+                self._profile_lock_file = None
+                raise
         return self._driver
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
@@ -286,7 +304,9 @@ class BaiduNewsAdapter:
                 pass
             # uc.Chrome.quit() 은 브라우저에 SIGTERM 만 보내고 종료를 확인하지 않는다 —
             # 특히 hang 직후 정리하는 이 경로에서 응답 없이 orphan 으로 남기 쉽다.
-            kill_process_tree(browser_pid)
+            kill_process_tree(browser_pid, expected_user_data_dir=self._user_data_dir)
+            _profile_lock.release(self._profile_lock_file)
+            self._profile_lock_file = None
             self._driver = None
 
     def __del__(self) -> None:

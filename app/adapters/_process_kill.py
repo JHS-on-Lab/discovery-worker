@@ -27,11 +27,22 @@ _log = logging.getLogger(__name__)
 _CHROME_NAME_MARKERS = ("chrome",)
 
 
-def kill_process_tree(pid: int | None, timeout: float = 5.0) -> None:
+def kill_process_tree(
+    pid: int | None,
+    timeout: float = 5.0,
+    expected_user_data_dir: str | None = None,
+) -> None:
     """pid 와 그 자식 프로세스 전체를 SIGTERM → (timeout 초 후) SIGKILL 로 종료한다.
 
-    pid 가 None 이거나 이미 종료된 프로세스면 조용히 무시한다. 대상 프로세스 이름이
-    chrome 계열이 아니면(PID 재사용으로 무관한 프로세스가 됐을 가능성) 건드리지 않는다.
+    pid 가 None 이거나 이미 종료된 프로세스면 조용히 무시한다.
+
+    PID 재사용 레이스 컨디션 방지: 이름이 chrome 계열인지만 보면, 같은 호스트에서
+    여러 Chrome 기반 워커가 동시에 뜬 상태일 때 원래 pid가 이미 죽고 그 번호가
+    "다른 워커의 정상 Chrome"으로 재사용됐을 가능성을 걸러내지 못한다.
+    expected_user_data_dir 를 넘기면(영구 프로필 사용 시) cmdline 의
+    --user-data-dir 인자가 정확히 그 경로를 가리키는지까지 확인해 훨씬 정밀하게
+    판별한다. 넘기지 않으면(임시 프로필 등, 경로를 특정할 수 없는 경우) 이름 확인만
+    수행한다 — 완벽하진 않지만 아무것도 안 하는 것보단 낫다.
     """
     if pid is None:
         return
@@ -41,7 +52,7 @@ def kill_process_tree(pid: int | None, timeout: float = 5.0) -> None:
     except psutil.NoSuchProcess:
         return
 
-    if not _looks_like_chrome(parent):
+    if not _looks_like_chrome(parent, expected_user_data_dir):
         return
 
     procs = [parent]
@@ -72,9 +83,20 @@ def kill_process_tree(pid: int | None, timeout: float = 5.0) -> None:
         )
 
 
-def _looks_like_chrome(proc: psutil.Process) -> bool:
+def _looks_like_chrome(proc: psutil.Process, expected_user_data_dir: str | None) -> bool:
     try:
         name = (proc.name() or "").lower()
     except psutil.NoSuchProcess:
         return False
-    return any(marker in name for marker in _CHROME_NAME_MARKERS)
+    if not any(marker in name for marker in _CHROME_NAME_MARKERS):
+        return False
+
+    if expected_user_data_dir is None:
+        return True
+
+    try:
+        cmdline = proc.cmdline()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        # cmdline 을 못 읽으면 이름 확인만으로 판단(플랫폼/권한 제약) — 완전 무시하지 않는다.
+        return True
+    return any(expected_user_data_dir in arg for arg in cmdline)

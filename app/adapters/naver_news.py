@@ -106,6 +106,7 @@ def _parse_urls(html: str) -> tuple[list[str], bool]:
     """
     tree = HTMLParser(html)
     urls: list[str] = []
+    seen: set[str] = set()
 
     for node in tree.css("a[href]"):
         href = node.attributes.get("href", "")
@@ -126,7 +127,9 @@ def _parse_urls(html: str) -> tuple[list[str], bool]:
         if not parsed.path or parsed.path in ("", "/"):
             continue
 
-        urls.append(href)
+        if href not in seen:
+            seen.add(href)
+            urls.append(href)
 
     is_genuine_empty = (not urls) and bool(tree.css_first("#notfound, [class*='not_found']"))
     return urls, is_genuine_empty
