@@ -29,6 +29,7 @@ import httpx
 from app import config
 from app.worker import _healthcheck
 from app.adapters import make_adapter
+from app.adapters._process_kill import reap_zombie_children
 from app.repository.db import db_context
 from app.repository.keyword_repo import KeywordRepo
 from app.repository.crawl_url_repo import CrawlUrlRepo
@@ -60,6 +61,12 @@ def _start_healthcheck_thread(interval: float) -> threading.Event:
     "오래 걸리지만 진행 중인 작업"을 구분하는 효과가 있다. 또한 google_news/baidu_news
     어댑터에는 이미 page-load 타임아웃이 걸려 있어(별도 수정) 메인 스레드가 무한정
     멈추는 경우 자체가 없으므로, 이 분리가 진짜 hang을 놓치는 위험은 낮다.
+
+    같은 주기로 reap_zombie_children() 도 호출한다 — Chrome 이 crash reporting용
+    프로세스를 detach 시켜(더블포크) kill_process_tree() 의 추적 대상(browser_pid
+    자손 트리)에서 벗어나면서 생기던 chrome_crashpad 등 좀비를 여기서 정리한다.
+    google_news/baidu_news 를 안 쓰는 소스라도 reap 자체는 비용이 거의 없어
+    소스 구분 없이 항상 돌린다.
     """
     stop_event = threading.Event()
     _healthcheck.write()
@@ -67,6 +74,7 @@ def _start_healthcheck_thread(interval: float) -> threading.Event:
     def _loop() -> None:
         while not stop_event.wait(interval):
             _healthcheck.write()
+            reap_zombie_children()
 
     threading.Thread(target=_loop, daemon=True, name="healthcheck-writer").start()
     return stop_event
