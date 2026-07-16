@@ -1,6 +1,7 @@
 -- ============================================================
 -- discovery-worker / extraction-worker schema  (DBA 전달용 — 최종 버전)
--- MySQL 8.0+  /  InnoDB  /  utf8mb4_unicode_ci
+-- MariaDB 10.5+  /  InnoDB  /  utf8mb4_unicode_ci
+-- (SKIP LOCKED 미지원 버전 — discovery-worker/extraction-worker는 낙관적 UPDATE로 클레임)
 -- ============================================================
 
 CREATE TABLE t_crawl_runtime (

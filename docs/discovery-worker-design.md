@@ -11,7 +11,8 @@
 
 키워드 기반으로 여러 포털 소스를 탐색해, 발견된 콘텐츠의 **URL·제목·본문·메타데이터**를 수집·저장하는 서비스다. 뉴스 기사에 국한되지 않고, 포털에서 키워드로 탐색 가능한 **모든 종류의 웹 콘텐츠**를 수집 대상으로 한다. 단발 스크립트가 아니라 운영(operation)을 전제로 한다.
 
-- **대상 소스**: 네이버(뉴스·증권 종목토론), 다음 뉴스, 구글 뉴스, 바이두 뉴스, DuckDuckGo(베트남어) (`source_type`: `NAVER_NEWS`, `NAVER_STOCK`, `DAUM_NEWS`, `GOOGLE_NEWS`, `BAIDU_NEWS`, `DUCKDUCKGO_NEWS`)
+- **대상 소스**: 네이버(뉴스·증권 종목토론), 다음 뉴스, 구글 뉴스, 바이두 뉴스 (`source_type`: `NAVER_NEWS`, `NAVER_STOCK`, `DAUM_NEWS`, `GOOGLE_NEWS`, `BAIDU_NEWS`)
+  - `DUCKDUCKGO_NEWS`(베트남어)는 어댑터/`source_type`이 코드에 남아있지만 현재 운영상 비활성(실제 대상 키워드 없음)이다.
 - **수집 단위**: 키워드. 키워드는 RDB에 저장되며 각 키워드는 `source_type`을 가진다.  
   포털 검색 소스는 검색어, 증권 종목토론은 종목코드 등이 키워드가 된다.
 - **수집 대상의 핵심**: 본문 전문(full text). 이것이 빠지면 의미가 없다.
@@ -97,7 +98,7 @@ class SourceAdapter(Protocol):
 
 `--source` 인자로 처리할 소스를 지정한다. **`--role` 플래그는 없다** — 이 프로젝트는 발견(Discovery) 전용이다. 본문 추출은 `extraction-worker` 프로젝트가 별도로 담당한다.
 
-- `--source` : `naver_news` | `naver_stock` | `daum_news` | `google_news` | `baidu_news` | `duckduckgo_news` | `all` — **점유 쿼리의 `WHERE source_type` 필터값**. 기본값 없음(필수).
+- `--source` : `naver_news` | `naver_stock` | `daum_news` | `google_news` | `baidu_news` | `duckduckgo_news`(운영상 비활성) | `all` — **점유 쿼리의 `WHERE source_type` 필터값**. 기본값 없음(필수).
 
 ```bash
 python -m app --source naver_news   # 네이버 발견자
@@ -124,12 +125,19 @@ services:
 
 ## 5. 데이터 모델
 
-### 5.1 RDB 테이블 (3개로 통합)
+### 5.1 RDB 테이블 (현재 4개: keyword / crawl_url / domain / collection_log)
+
+> 이 절은 최초 설계 당시 "3개로 통합" 구상으로 작성됐으나, 실제 구현에서는 실행 로그를
+> 위한 `t_collection_log`가 4번째 테이블로 추가됐고(§8.1, §12.4에서 상시 사용),
+> `crawl_url.collected_date`/`domain.excluded` 컬럼도 이후 추가됐다. 아래 ERD는 최신
+> 마이그레이션 기준 실제 스키마를 반영한 것이다(스키마 사본: `docs/db/schema.sql`, 마이그레이션
+> 원본은 `../crawlerdb-migrations`).
 
 ```mermaid
 erDiagram
   KEYWORD ||--o{ CRAWL_URL : discovers
   DOMAIN  ||--o{ CRAWL_URL : "policy / rules"
+  KEYWORD ||--o{ COLLECTION_LOG : "run history"
   KEYWORD {
     bigint id PK
     string keyword
@@ -150,6 +158,7 @@ erDiagram
     bigint keyword_id FK
     string source_type
     string status
+    date collected_date
     int attempt_count
     string last_error_code
     string last_error_msg
@@ -164,6 +173,7 @@ erDiagram
   }
   DOMAIN {
     string host PK
+    bool excluded
     json rules_json
     bool rules_enabled
     int rules_version
@@ -177,20 +187,44 @@ erDiagram
     timestamp updated_at
     string updated_by
   }
+  COLLECTION_LOG {
+    bigint id PK
+    string run_type
+    string source_type
+    bigint keyword_id FK
+    date run_date
+    int urls_found
+    int urls_inserted
+    int urls_skipped
+    int urls_attempted
+    int urls_success
+    int urls_failed
+    string error_msg
+  }
 ```
 
-**`keyword`** — 작업 원천이자 스케줄 상태. 기존 테이블에 스케줄 컬럼만 확장한다. `interval_seconds`/`next_discover_at`은 지금(하루 1회, cron)에서는 안 써도 두기만 하면 미래에 "키워드별 주기"로 전환할 때 스키마 변경이 없다.
+**`keyword`** — 작업 원천이자 스케줄 상태. `interval_seconds`는 플레이스홀더가 아니라
+`claim_next()`(`app/repository/keyword_repo.py`)가 실제로 읽어 `next_discover_at = NOW() +
+INTERVAL :interval_seconds SECOND`로 재스케줄하는 데 쓰인다 — 모든 키워드가 기본값
+86400(24시간)이라 지금은 사실상 "하루 1회"로 보이지만, DB 값만 바꾸면 코드 변경 없이
+키워드별 주기를 다르게 줄 수 있다.
 
 **`crawl_url`** — 시스템의 심장. 작업 큐 + 상태 기계 + 실패 보관소를 한 테이블로 통합했다. "실패 URL을 따로 보관"하는 요구는 별도 테이블이 아니라 `status` 값으로 흡수된다.
 - `url_hash`에 **UNIQUE 제약** (중복 방지의 관문 — 6절 참고).
 - `status` enum: `discovered`, `extracting`, `stored`, `failed_transient`, `failed_permanent`, `dead`. (`stored`는 성공 종료. 나중에 Solr를 붙이면 의미상 "indexed"에 해당.)
-- 인덱스: `url_hash`(unique), `(status, next_retry_at, priority)`(점유 쿼리용), `host`, `keyword_id`.
+- `collected_date`: 발견된 날짜(대시보드/통계 집계용, `ix_crawl_url_collected_date` 인덱스).
+- 인덱스: `url_hash`(unique), `(status, next_retry_at, priority)`(점유 쿼리용), `host`, `keyword_id`, `collected_date`.
 
 **`domain`** — 도메인별 **예외만** 담는 희소(sparse) 테이블. 추출 규칙 + 수집 정책 + 차단기 상태 + 건강 지표를 한 행에 모았다. **모든 도메인이 행을 갖지 않는다.** 규칙/정책 오버라이드가 필요한 도메인만 행이 있고 나머지는 전부 기본값으로 동작한다.
+- `excluded`: 이 host를 발견 단계에서부터 완전히 차단(하드 스킵). `crawl_url_repo`가 발견
+  결과에서 `excluded=1` host를 필터링한다.
 - `render_mode`: `static` | `headless`.
 - `success_rate`/`avg_body_len`: 드리프트 감지용(11.4절).
 
-**선택적 4번째 테이블** — 규칙 롤백 이력이 중요하면 가벼운 `domain_rule_history(host, rules_json, version, created_at, created_by)`를 추가한다. 과하면 생략하고 `domain` 행에 직전 규칙을 JSON 한 벌로 보관해도 된다. 운영 중 규칙 수정 빈도를 보고 결정.
+**`collection_log`** — 발견/추출 실행(run) 단위 결과 로그. `run_type`이 `discovery`면
+`urls_found`/`urls_inserted`/`urls_skipped`, `extraction`이면 `urls_attempted`/`urls_success`/
+`urls_failed`를 채운다(어느 쪽 컬럼을 쓰는지는 `run_type`에 따라 갈리며, 이 프로젝트는
+`discovery` 런만 기록한다). crawler-admin 대시보드와 `/logs` 페이지가 이 테이블을 조회한다.
 
 ### 5.2 파일 출력 형식 (초기 Sink)
 

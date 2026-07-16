@@ -31,25 +31,25 @@ pip install -r requirements.txt \
 
 ---
 
-## Playwright 브라우저 설치 (필수)
+## Chrome / undetected-chromedriver 설치 (google_news, baidu_news 필수)
 
-`pip install -r requirements.txt` 만으로는 브라우저 바이너리가 설치되지 않는다.  
-Playwright는 Python 라이브러리와 브라우저 실행 파일을 분리 배포하며,  
-바이너리는 OS 캐시 디렉터리(`~/Library/Caches/ms-playwright` 등)에 별도 저장된다.
+이 저장소는 Playwright를 쓰지 않는다(`requirements.txt`에 없음, 코드 어디서도 import하지
+않음). `google_news`/`baidu_news` 어댑터는 봇 탐지를 우회하기 위해
+`undetected-chromedriver` + `selenium`으로 실제 Chrome 브라우저를 headful/headless로
+직접 띄운다(`app/adapters/google_news.py`, `app/adapters/baidu_news.py`).
 
-설치하지 않으면 headless 렌더링 시 아래 오류가 발생한다.
-
-```
-playwright._impl._errors.Error: BrowserType.launch: Executable doesn't exist
-```
-
-venv가 활성화된 상태에서 아래 명령을 실행한다.
-
-```bash
-playwright install chromium
-```
-
-> venv를 새로 만들어도 재설치 불필요. 단, Playwright 버전 업그레이드 시에는 재실행해야 한다.
+- **Chrome 설치 필요**: `undetected_chromedriver`는 시스템에 설치된 Chrome/Chromium
+  바이너리를 찾아 구동한다(`_detect_chrome_binary()`가 OS별 표준 설치 경로·레지스트리를
+  탐색). Chrome이 없으면 두 어댑터는 동작하지 않는다.
+- **드라이버 버전 자동 매칭**: `undetected-chromedriver`가 설치된 Chrome 메이저 버전에
+  맞는 chromedriver를 자동으로 내려받으므로 별도 `chromedriver install` 단계는 없다.
+  단, Chrome을 업그레이드하면 캐시된 드라이버와 버전이 어긋나 재시도가 필요할 수 있다.
+- **Google 어댑터는 headless=False로 실행**(Google 봇 탐지 회피, `google_news.py` 상단
+  주석 참고): 로컬 macOS/Windows에서는 실제 창이 뜬다. **Linux 서버(Xvfb 필요)**: 디스플레이가
+  없으면 어댑터가 `Xvfb`를 자동 기동하므로(`_ensure_xvfb()`), Docker 이미지가 아닌 로컬 Linux
+  환경에서 직접 돌릴 경우 `xvfb` 패키지가 설치돼 있어야 한다(`apt-get install -y xvfb` 등).
+  Docker로 실행하면 `Dockerfile`이 `google-chrome-stable`/`xvfb`를 이미 포함하므로 신경 쓸
+  필요 없다.
 
 ---
 

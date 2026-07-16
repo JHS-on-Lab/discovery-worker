@@ -8,6 +8,8 @@ python -m app --source naver_news
 python -m app --source naver_stock
 python -m app --source daum_news
 python -m app --source google_news
+python -m app --source baidu_news
+# duckduckgo_news 는 어댑터/CLI 옵션이 남아있지만 현재 운영상 비활성(실제 대상 키워드 없음)
 
 # 단일 프로세스로 전체 소스 처리 (소규모 운영)
 python -m app --source all
@@ -26,6 +28,7 @@ python -m app --source naver_news --worker-id disc-naver-2
 # 워커 시작
 ./deploy/run.sh naver_news disc-naver-1
 ./deploy/run.sh daum_news  disc-daum-1
+./deploy/run.sh baidu_news disc-baidu-1
 ./deploy/run.sh all        disc-all-1
 
 # 로그 확인
@@ -97,6 +100,11 @@ services:
   disc-google:
     image: discovery-worker:latest
     command: ["--source", "google_news"]
+    env_file: .env.dev
+
+  disc-baidu:
+    image: discovery-worker:latest
+    command: ["--source", "baidu_news"]
     env_file: .env.dev
 ```
 
