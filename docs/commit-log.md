@@ -12,6 +12,15 @@
 
 ---
 
+## 8eb7b24 — 2026-07-23
+feat: heartbeat 주기 메모리 사용량 로깅 + 소스별 컨테이너 메모리 제한
+
+- app/logging_setup.py
+- app/memlog.py
+- app/scheduling/dispatcher.py
+- deploy/run.sh
+- docs/commit-log.md
+
 ## d1b94f5 — 2026-07-17
 docs: 커밋 로그 트래킹 파일 추가 (docs/commit-log.md)
 

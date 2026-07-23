@@ -213,6 +213,16 @@ class UCGoogleNewsAdapter:
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-software-rasterizer")
             opts.add_argument(f"--window-size={random.choice(_WINDOW_SIZES)}")
+            # 메모리 절감. 검색결과 페이지에서 XPath로 링크 텍스트만 읽고 이미지/시각적
+            # 렌더링 결과는 안 쓰므로 기능상 리스크 없음(mem 로그에서 관찰된 children
+            # 프로세스 급증(15→50)이 BackForwardCache/Site Isolation과 상관관계).
+            #   - BackForwardCache: 뒤로가기 없이 앞으로만 이동하므로 순수 낭비
+            #   - IsolateOrigins/site-per-process: 교차 출처 iframe(광고 등)마다 별도
+            #     프로세스를 만드는 보안 격리 기능. DOM/렌더링 결과 자체는 안 바뀜.
+            opts.add_argument("--disable-features=BackForwardCache,IsolateOrigins,site-per-process")
+            opts.add_experimental_option("prefs", {
+                "profile.managed_default_content_settings.images": 2,
+            })
             if sys.platform == "win32":
                 opts.add_argument("--window-position=-32000,-32000")
 
