@@ -12,6 +12,11 @@
 
 ---
 
+## d1b94f5 — 2026-07-17
+docs: 커밋 로그 트래킹 파일 추가 (docs/commit-log.md)
+
+- docs/commit-log.md
+
 ## 6130a48 — 2026-07-16
 docs: add README, fix baidu_news gaps and stale Playwright references
 

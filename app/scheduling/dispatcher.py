@@ -30,6 +30,7 @@ from app import config
 from app.worker import _healthcheck
 from app.adapters import make_adapter
 from app.adapters._process_kill import reap_zombie_children
+from app.memlog import log_memory_usage
 from app.repository.db import db_context
 from app.repository.keyword_repo import KeywordRepo
 from app.repository.crawl_url_repo import CrawlUrlRepo
@@ -47,7 +48,7 @@ _403_SLEEP_SEC   = 60   # 403 후 다음 키워드 요청 전 IP 레벨 냉각
 _ERROR_SLEEP_SEC = 10   # 그 외 예외 후 빠른 루프 방지
 
 
-def _start_healthcheck_thread(interval: float) -> threading.Event:
+def _start_healthcheck_thread(interval: float, worker_id: str) -> threading.Event:
     """healthcheck 파일을 별도 스레드에서 주기적으로 갱신한다.
 
     기존에는 메인 루프 상단(다음 키워드를 집기 직전)에서만 갱신했는데, google 뉴스
@@ -67,6 +68,10 @@ def _start_healthcheck_thread(interval: float) -> threading.Event:
     자손 트리)에서 벗어나면서 생기던 chrome_crashpad 등 좀비를 여기서 정리한다.
     google_news/baidu_news 를 안 쓰는 소스라도 reap 자체는 비용이 거의 없어
     소스 구분 없이 항상 돌린다.
+
+    같은 주기로 log_memory_usage() 도 호출해 self/자식 프로세스 RSS 를
+    {log_name}-mem.log 에 남긴다 — Chrome 을 안 쓰는 소스도 대조군으로 남겨두기
+    위해 마찬가지로 소스 구분 없이 항상 돌린다(app/memlog.py 참고).
     """
     stop_event = threading.Event()
     _healthcheck.write()
@@ -75,6 +80,7 @@ def _start_healthcheck_thread(interval: float) -> threading.Event:
         while not stop_event.wait(interval):
             _healthcheck.write()
             reap_zombie_children()
+            log_memory_usage(worker_id)
 
     threading.Thread(target=_loop, daemon=True, name="healthcheck-writer").start()
     return stop_event
@@ -103,7 +109,7 @@ def run_discovery_loop(source: str, worker_id: str) -> None:
     last_heartbeat = time.monotonic()
     processed = 0
 
-    healthcheck_stop = _start_healthcheck_thread(heartbeat_interval)
+    healthcheck_stop = _start_healthcheck_thread(heartbeat_interval, worker_id)
 
     with db_context() as engine:
         kw_repo   = KeywordRepo(engine)
