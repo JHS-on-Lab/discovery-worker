@@ -12,6 +12,13 @@
 
 ---
 
+## de897b9 — 2026-07-23
+perf: google/baidu Chrome 메모리 절감 옵션 추가 (BFCache/Site Isolation 끄기, 이미지 끄기)
+
+- app/adapters/baidu_news.py
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## 8eb7b24 — 2026-07-23
 feat: heartbeat 주기 메모리 사용량 로깅 + 소스별 컨테이너 메모리 제한
 
