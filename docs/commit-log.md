@@ -12,6 +12,12 @@
 
 ---
 
+## bea91d0 — 2026-07-23
+docs: 메모리 로깅/OOM 완화 작업 As-Is·To-Be 정리 문서 추가
+
+- docs/commit-log.md
+- docs/memory-oom-mitigation.md
+
 ## de897b9 — 2026-07-23
 perf: google/baidu Chrome 메모리 절감 옵션 추가 (BFCache/Site Isolation 끄기, 이미지 끄기)
 
