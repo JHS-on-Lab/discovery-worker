@@ -176,8 +176,11 @@ class UCGoogleNewsAdapter:
         self._search_blocked_until: datetime | None = None  # 봇 차단 감지 시 rss 폴백 만료 시각
 
     def _ensure_xvfb(self) -> None:
-        """Linux 서버에 디스플레이가 없으면 Xvfb 가상 디스플레이를 시작한다."""
-        if sys.platform == "win32":
+        """Linux 서버에 디스플레이가 없으면 Xvfb 가상 디스플레이를 시작한다.
+
+        Xvfb 는 리눅스 전용 도구 — Windows/macOS 는 실제 디스플레이가 있어 불필요
+        (게다가 macOS 엔 Xvfb 바이너리 자체가 없어 그대로 두면 FileNotFoundError)."""
+        if sys.platform != "linux":
             return
         if os.environ.get("DISPLAY"):
             return

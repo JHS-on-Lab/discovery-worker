@@ -154,7 +154,11 @@ class BaiduNewsAdapter:
         self._profile_lock_file = None  # WORKER_ID 중복 감지용 flock 파일 핸들
 
     def _ensure_xvfb(self) -> None:
-        if sys.platform == "win32":
+        """Linux 서버에 디스플레이가 없으면 Xvfb 가상 디스플레이를 시작한다.
+
+        Xvfb 는 리눅스 전용 도구 — Windows/macOS 는 실제 디스플레이가 있어 불필요
+        (게다가 macOS 엔 Xvfb 바이너리 자체가 없어 그대로 두면 FileNotFoundError)."""
+        if sys.platform != "linux":
             return
         if os.environ.get("DISPLAY"):
             return

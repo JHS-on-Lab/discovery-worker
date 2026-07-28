@@ -12,6 +12,12 @@
 
 ---
 
+## 892b4dc — 2026-07-28
+feat: mem 로그에 Chrome 자식 프로세스 타입별(renderer/gpu/utility/crashpad 등) breakdown 추가
+
+- app/memlog.py
+- docs/commit-log.md
+
 ## bea91d0 — 2026-07-23
 docs: 메모리 로깅/OOM 완화 작업 As-Is·To-Be 정리 문서 추가
 
