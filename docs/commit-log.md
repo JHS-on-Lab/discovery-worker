@@ -12,6 +12,13 @@
 
 ---
 
+## feef7dd — 2026-07-28
+fix: macOS 에서 Chrome 바이너리 탐지 실패하는 문제 수정
+
+- app/adapters/baidu_news.py
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## 73068bb — 2026-07-28
 fix: macOS 로컬 개발 환경에서 Xvfb 기동 시도로 크래시하는 문제 수정
 

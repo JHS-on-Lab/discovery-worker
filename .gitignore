@@ -10,8 +10,10 @@ ENV/
 # Output
 output/
 
-# Chrome 영구 프로필 (google_news 어댑터 — 쿠키/세션 데이터, 커밋 대상 아님)
-chrome_profile/
+# Chrome 영구 프로필 (google_news/baidu_news 어댑터 — 쿠키/세션 데이터, 커밋 대상 아님)
+# 실제 기본 경로는 chrome_profile_google/, chrome_profile_baidu/ (config.py 의
+# GOOGLE_CHROME_PROFILE_DIR/BAIDU_CHROME_PROFILE_DIR 기본값) — glob 으로 둘 다 포함
+chrome_profile*/
 
 # Claude Code
 .claude/
