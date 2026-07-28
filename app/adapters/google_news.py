@@ -92,6 +92,11 @@ _LINUX_CHROME_PATHS = (
     "/usr/bin/chromium",
     "/snap/bin/chromium",
 )
+_MAC_CHROME_PATHS = (
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    os.path.expanduser("~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+)
 
 
 def _detect_chrome_binary() -> str | None:
@@ -113,6 +118,12 @@ def _detect_chrome_binary() -> str | None:
                         return candidate
             except Exception:
                 continue
+        return shutil.which("chrome") or shutil.which("chromium")
+
+    if sys.platform == "darwin":
+        for path in _MAC_CHROME_PATHS:
+            if os.path.isfile(path):
+                return path
         return shutil.which("chrome") or shutil.which("chromium")
 
     for binary in _LINUX_CHROME_BINARIES:

@@ -12,6 +12,13 @@
 
 ---
 
+## 73068bb — 2026-07-28
+fix: macOS 로컬 개발 환경에서 Xvfb 기동 시도로 크래시하는 문제 수정
+
+- app/adapters/baidu_news.py
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## 892b4dc — 2026-07-28
 feat: mem 로그에 Chrome 자식 프로세스 타입별(renderer/gpu/utility/crashpad 등) breakdown 추가
 
