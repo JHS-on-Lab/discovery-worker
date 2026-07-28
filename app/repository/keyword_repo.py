@@ -14,6 +14,7 @@ claim_next() 의 동작 원리 (낙관적 클레임, MariaDB 10.5 호환 — SKI
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from sqlalchemy import Engine, text
 
@@ -31,14 +32,15 @@ class KeywordRepo:
           2. 각 후보에 대해 UPDATE WHERE 조건으로 선점 시도
           3. rowcount=1 → 내가 가져간 것 / rowcount=0 → 다른 워커가 먼저 가져간 것 → 다음 후보 시도
 
-        반환: {id, keyword, source_type, interval_seconds} 또는 None(없으면)
+        반환: {id, keyword, source_type, interval_seconds, source_options_json} 또는 None(없으면).
+        source_options_json 은 dict 로 파싱해서 반환 (원본 없으면 None).
         """
         source_filter = "" if source.upper() == "ALL" else "AND source_type = :source"
 
         with self._engine.begin() as conn:
             rows = conn.execute(
                 text(f"""
-                    SELECT id, keyword, source_type, interval_seconds, retry_pending
+                    SELECT id, keyword, source_type, interval_seconds, retry_pending, source_options_json
                     FROM t_keyword
                     WHERE enabled = true
                       AND (next_discover_at IS NULL OR next_discover_at <= NOW())
@@ -51,6 +53,8 @@ class KeywordRepo:
 
             for row in rows:
                 kw = dict(row._mapping)
+                if kw.get("source_options_json"):
+                    kw["source_options_json"] = json.loads(kw["source_options_json"])
                 result = conn.execute(
                     text("""
                         UPDATE t_keyword

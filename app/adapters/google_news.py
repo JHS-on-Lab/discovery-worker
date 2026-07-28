@@ -51,7 +51,6 @@ from app.types import BotBlockedError, DiscoverResult, SourceType
 
 _log = logging.getLogger(__name__)
 
-_SEARCH_URL = "https://www.google.com/search"
 _RSS_URL    = "https://news.google.com/rss/search"
 
 _GOOGLE_HOSTS = {
@@ -79,6 +78,19 @@ def _simulate_reading(driver) -> None:
             time.sleep(random.uniform(0.3, 0.9))
     except Exception:
         pass
+
+
+def _parse_region(region: str) -> tuple[str, dict[str, str]]:
+    """t_keyword.source_options_json 의 region 값을 (host, extra_params) 로 분해한다.
+
+    'google.com' → ('google.com', {})
+    'google.com/?gl=us' → ('google.com', {'gl': 'us'})
+
+    scheme 없이 저장돼 있으므로 urlparse 가 host 를 path 로 오인하지 않도록 붙여서 파싱한다.
+    """
+    parsed = urlparse(region if "://" in region else f"https://{region}")
+    extra = {k: v[0] for k, v in parse_qs(parsed.query).items() if v}
+    return parsed.netloc, extra
 
 
 _LINUX_CHROME_BINARIES = (
@@ -185,6 +197,20 @@ class UCGoogleNewsAdapter:
         self._user_data_dir: str | None = None  # close() 에서 PID 재사용 방지 확인에 사용
         self._profile_lock_file = None  # WORKER_ID 중복 감지용 flock 파일 핸들
         self._search_blocked_until: datetime | None = None  # 봇 차단 감지 시 rss 폴백 만료 시각
+        self._region_host: str | None = None  # source_options_json.region 오버라이드 (없으면 기본 도메인)
+        self._region_extra_params: dict[str, str] = {}  # 위 region 의 쿼리스트링(gl= 등) — 기본 hl/gl 을 덮어씀
+
+    def apply_source_options(self, options: dict | None) -> None:
+        """dispatcher 가 키워드 처리 직전에 호출하는 훅. t_keyword.source_options_json 을 받아
+        region 오버라이드를 적용한다. region 이 없으면(대부분의 키워드) 기본값으로 리셋한다 —
+        같은 어댑터 인스턴스가 여러 키워드를 연속 처리하므로, 리셋을 안 하면 이전 키워드의
+        region 이 다음 키워드로 새어 들어간다."""
+        region = (options or {}).get("region")
+        if not region:
+            self._region_host = None
+            self._region_extra_params = {}
+            return
+        self._region_host, self._region_extra_params = _parse_region(region)
 
     def _ensure_xvfb(self) -> None:
         """Linux 서버에 디스플레이가 없으면 Xvfb 가상 디스플레이를 시작한다.
@@ -312,18 +338,22 @@ class UCGoogleNewsAdapter:
         # 적용해야 이전 키워드 처리 직후 딜레이 없이 바로 이어지는 걸 막는다.
         _jitter_sleep(self._delay_sec)
 
-        params = urlencode({
+        query = {
             "q":     keyword,
             "tbm":   "nws",
             "start": (page - 1) * 10,
             "tbs":   "qdr:d",
             "hl":    "ko",
             "gl":    "KR",
-        })
+        }
+        # source_options_json.region 오버라이드 — 있으면 hl/gl 등 기본값을 덮어쓴다.
+        query.update(self._region_extra_params)
+        params = urlencode(query)
+        host = self._region_host or "www.google.com"
 
         driver = self._ensure_driver()
         try:
-            driver.get(f"{_SEARCH_URL}?{params}")
+            driver.get(f"https://{host}/search?{params}")
         except Exception as exc:
             # TimeoutException/WebDriverException 뿐 아니라, chromedriver 커맨드
             # 채널 자체가 죽으면 urllib3.exceptions.ReadTimeoutError 등이 selenium을

@@ -193,6 +193,11 @@ def _run_one(
         cursor   = None
         page     = 1
 
+        # source_options_json(예: google_news 의 region 오버라이드)을 지원하는
+        # 어댑터에만 적용 — 대부분의 어댑터는 이 훅이 없어 조용히 스킵된다.
+        if hasattr(adapter, "apply_source_options"):
+            adapter.apply_source_options(kw.get("source_options_json"))
+
         if is_retry:
             logger.info(
                 "retry: scanning from page 1 without early-stop",

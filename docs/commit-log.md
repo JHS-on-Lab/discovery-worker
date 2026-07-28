@@ -12,6 +12,12 @@
 
 ---
 
+## 8a48e55 — 2026-07-28
+fix: .gitignore 의 chrome_profile/ 패턴이 실제 기본 경로와 안 맞던 문제 수정
+
+- .gitignore
+- docs/commit-log.md
+
 ## feef7dd — 2026-07-28
 fix: macOS 에서 Chrome 바이너리 탐지 실패하는 문제 수정
 
