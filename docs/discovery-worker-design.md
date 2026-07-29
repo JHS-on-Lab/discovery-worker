@@ -314,6 +314,22 @@ INTERVAL :interval_seconds SECOND`로 재스케줄하는 데 쓰인다 — 모�
 1. **내부 요청 직접 호출을 먼저 시도.** 무한 스크롤은 대개 뒤에서 "다음 N개" API(보통 JSON)를 호출한다. 브라우저 개발자도구 Network 탭에서 그 요청의 URL·파라미터(오프셋/start)·응답 형태를 확인해, 호출 가능하면 headless 없이 정적 HTTP로 페이지네이션처럼 다룬다. 가장 가볍고 차단 위험도 낮다. 가장 가볍고 차단 위험도 낮다.
 2. **막히면 headless 스크롤로 폴백.** 토큰·서명·쿠키로 내부 요청이 거부되면 headless로 스크롤한다. 단 무작정 끝까지가 아니라 9.1~9.2의 중단 조건(기간 필터·컷오프·상한)을 그대로 적용한다. 스크롤 후에는 고정 sleep 대신 "새 항목이 나타날 때까지 대기"하고, 한 세션 내 중복은 url_hash가 최종적으로 잡는다.
 
+### 8.6 구글 뉴스 — 봇 차단 감지 및 RSS 폴백 조건
+
+`app/adapters/google_news.py`. `GOOGLE_DISCOVERY_MODE`에 따라 두 모드로 동작(README 참고):
+
+- **`search`(기본)**: `google.com/search?tbm=nws`를 undetected-chromedriver로 스크랩. 페이지네이션 가능.
+- **`rss`**: Google News RSS를 정적 HTTP로 가져온 뒤, RSS의 CBMi 리다이렉트 URL(최종 언론사 URL이 아니라 구글의 wrapper URL)을 Chrome으로 하나씩 열어 `current_url`을 읽어 실제 URL로 변환. CBMi는 순수 HTTP 리다이렉트가 아니라 news.google.com 안에서 클라이언트사이드 JS로 최종 URL을 알아내는 방식이라(httpx로 직접 확인, 2026-07-29) Chrome이 필수.
+
+**RSS 폴백이 자동으로 발동하는 조건**(설정으로 처음부터 `rss`를 강제하는 경우 제외): `search` 모드에서 결과가 0건일 때, 그게 진짜 봇 차단인지 단순히 결과가 소진된 정상 상황인지를 구분해야 한다(`tbs=qdr:d` 최근 1일 필터상 페이지 깊이가 늘수록 결과가 정상적으로 0건이 되는 경우가 흔함). 아래 신호 중 하나라도 있어야 "진짜 차단"으로 판정한다(`_is_bot_block_page()`):
+
+- `driver.current_url`에 `/sorry/`가 포함
+- `driver.page_source`에 다음 문구 중 하나 포함: `unusual traffic`, `비정상적인 트래픽`, `g-recaptcha`, `detected unusual traffic from your computer network`
+
+차단으로 판정되면 `_search_blocked_until = now + GOOGLE_BLOCK_COOLDOWN_SEC`(기본 3600초)를 세팅하고 `BotBlockedError`를 던진다. **이 상태는 어댑터 인스턴스 하나에 저장되고, 그 인스턴스는 워커 프로세스 수명 동안 모든 키워드가 공유한다** — 즉 키워드 하나가 차단당하면 그 순간부터 쿨다운이 끝날 때까지 이 워커가 처리하는 **모든** 키워드가 `rss` 모드로 넘어간다. 쿨다운이 지나면 다음 `discover()` 호출에서 자동으로 `search` 모드 복귀를 시도한다.
+
+**운영상 주의**: `rss` 모드는 캡차 회피 수단이지만 그 자체로 메모리 리스크가 있다 — CBMi 해석은 구글 도메인이 아니라 광고/트래커가 많은 외부 언론사 사이트를 연달아 여러 개 열기 때문에, 정상 `search` 페이지네이션(구글 도메인 안에 계속 머묾)과 달리 Chrome renderer 프로세스가 누적돼 급증할 수 있다(2026-07-28 mem 로그 실측 — 최대 renderer 38개, 4.9GB). `_CBMI_BATCH_SIZE`개마다 Chrome을 재시작하고 `page_load_strategy=eager`로 불필요한 하위 리소스 로드를 기다리지 않도록 완화해뒀다(2026-07-29, `docs/memory-oom-mitigation.md` 참고).
+
 ---
 
 ## 9. 추출 전략 (라이브러리 우선, 규칙 보정)

@@ -12,6 +12,12 @@
 
 ---
 
+## 5cc152a — 2026-07-29
+perf: pageLoadStrategy=eager + current_url 폴링으로 CBMi 해석 시 불필요한 페이지 로드 대기 제거
+
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## 7b995a7 — 2026-07-29
 fix: rss 모드 CBMi URL 해석을 배치로 나눠 Chrome 을 주기적으로 재시작
 

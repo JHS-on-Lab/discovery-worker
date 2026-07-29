@@ -35,10 +35,31 @@ extraction-worker에도 동일 구조로 적용됨(`app/memlog.py`, `run_extract
 | 근거 | - | 검색결과 페이지에서 XPath로 링크 텍스트만 읽고 시각적 렌더링은 안 씀 → DOM/기능에 영향 없이 렌더러 프로세스 수와 이미지 캐시만 감소 |
 | 커밋 | - | `de897b9` |
 
-**효과**: 재배포 후 mem 로그로 피크값(이전 관찰치 최대 4.6GB)이 줄었는지 확인 필요 — 아직 서버 실측 전.
+**효과**: 서버 실측 결과(2026-07-28 08:15~08:49, `disc-google-test`) 피크가 안 줄었음(renderer 최대 38개, `rss_children_mb` 4.9GB — 이전 관찰치 4.6GB와 비슷한 규모). mem 로그를 같은 시간대 discover/error 로그와 대조해보니 원인이 이 옵션과 무관했다 — 정상 `search` 페이지네이션 구간(08:15~08:18, 여러 키워드가 p1~p5까지 연속 로드)은 그 내내 renderer가 2로 완전히 평평했고, 급증은 전부 `rss` 폴백 모드의 CBMi URL 해석 구간에서만 발생함(§4 참고). 즉 이 옵션 자체는 정상 동작하고 있었고, 그냥 원인이 다른 곳에 있었던 것.
+
+## 4. rss 폴백 모드 CBMi 해석 — 배치 재시작 (`google_news.py`)
+
+| | As-Is | To-Be |
+|---|---|---|
+| 상태 | `_resolve_cbmi()`가 CBMi URL(최대 ~100건)을 하나의 Chrome 세션으로 전부 순차 탐색 — 외부 언론사 사이트(광고/트래커 iframe 많음)를 연달아 열면서 renderer 프로세스가 계속 누적 | `_CBMI_BATCH_SIZE`(20)개마다 Chrome을 껐다 다시 켬. 배치 중 hang이 나도 그 배치만 포기하고 다음 배치는 새 driver로 이어감(기존엔 hang 시 전체를 포기) — 데이터 유실이 오히려 줄어듦 |
+| 근거 | - | mem 로그 스파이크 시각과 큰 CBMi 배치(37/100/101건) 처리 구간이 정확히 일치함을 확인(08:21~08:27, 08:27~08:39, 08:41~08:48) |
+| 커밋 | - | `7b995a7` |
+
+**효과**: mock driver + 실제 Chrome(배치 크기 축소해 강제 재현)으로 배치 분할·재시작 호출 횟수·hang 복구 경로 검증 완료. 서버 재배포 후 mem 로그로 피크 감소 확인 필요.
+
+## 5. rss 폴백 모드 CBMi 해석 — `pageLoadStrategy=eager` (`google_news.py`)
+
+| | As-Is | To-Be |
+|---|---|---|
+| 상태 | `driver.get(cbmi_url)`이 리다이렉트 완료 후 도착한 실제 언론사 페이지의 광고/트래커 iframe까지 전부 로드되길 기다림(page_load_strategy 기본값 `normal`) — 정작 쓰는 건 `current_url` 한 줄뿐, 본문은 안 읽음 | Chrome을 `page_load_strategy=eager`로 띄워 DOMContentLoaded 시점에 `driver.get()`이 바로 리턴하게 함. 리다이렉트가 그 이후에 끝나는 경우를 대비해 `_wait_for_cbmi_redirect()`로 `current_url`이 `news.google.com`을 벗어날 때까지 직접 폴링 |
+| 근거 | - | 4번 배치 재시작은 누적된 걸 주기적으로 리셋하는 완화책이고, 이건 애초에 광고 페이지가 로드될 기회 자체를 줄이는 더 근본적인 조치 |
+| 커밋 | - | `5cc152a` |
+
+**주의**: `page_load_strategy`는 driver 세션 전체에 적용되는 설정이라 `_discover_search()`(정상 검색)에도 같이 걸림. 실측 결과 검색 결과 추출(10건, `has_more=True`)엔 영향 없음(서버렌더링 HTML이라 DOMContentLoaded 시점에 이미 링크 존재). CBMi 8건 실제 리다이렉트도 8/8 정상 해석 확인(로컬).
 
 ## 남은 작업
 
-- Chrome 옵션 변경 후 mem 로그로 실제 효과(피크 감소폭) 확인
+- 4·5번 적용 후 서버 mem 로그로 실제 피크 감소 확인 (아직 실측 전)
 - extraction-worker는 URL마다 새 탭을 열고 즉시 `close()`하는 구조라 상대적으로 안전할 것으로 추정되나 아직 실측 안 함 — 데이터 쌓이면 discovery-worker와 동일한 방식으로 점검
 - 실측치가 쌓이는 대로 `MEM_LIMIT` 티어 값(현재는 관찰 전 임시값) 재조정
+- rss 폴백 자체가 봇 차단 회피 수단인데 메모리 리스크의 진앙이라는 구조적 모순은 여전함 — 4·5번으로도 부족하면 리전/프로필 분리 등 추가 완화 검토
