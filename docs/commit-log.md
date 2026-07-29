@@ -12,6 +12,12 @@
 
 ---
 
+## dba7b82 — 2026-07-29
+docs: stopLoading + 탭 즉시 닫기(8번) 문서화, 실측 기반 잔여 스파이크 원인 기록
+
+- docs/commit-log.md
+- docs/memory-oom-mitigation.md
+
 ## 6d5c71e — 2026-07-29
 perf: CBMi 리다이렉트 감지 즉시 Page.stopLoading + 탭 즉시 닫기로 광고 iframe 차단 강화
 
