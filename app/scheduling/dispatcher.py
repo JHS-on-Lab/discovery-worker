@@ -206,7 +206,7 @@ def _run_one(
 
         while True:
             result = adapter.discover(keyword, cursor)
-            ins, skp = url_repo.bulk_insert_discovered(result.urls, keyword_id, source)
+            ins, skp = url_repo.bulk_insert_discovered(result.urls, keyword_id, source, mode=result.mode)
             total_found += len(result.urls)
             total_ins   += ins
             total_skp   += skp

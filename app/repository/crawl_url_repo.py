@@ -34,11 +34,11 @@ _INSERT_SQL = text("""
     INSERT INTO t_crawl_url
         (url, url_hash, host, keyword_id, source_type, status,
          attempt_count, is_manual, priority,
-         collected_date, created_at, updated_at)
+         collected_date, created_at, updated_at, discovery_mode)
     VALUES
         (:url, :hash, :host, :kid, :source, 'discovered',
          0, false, 0,
-         :cdate, :created_at, :created_at)
+         :cdate, :created_at, :created_at, :mode)
     ON DUPLICATE KEY UPDATE
         updated_at = updated_at
 """)
@@ -58,11 +58,14 @@ class CrawlUrlRepo:
         raw_urls: list[str],
         keyword_id: int,
         source_type: str,
+        mode: str | None = None,
     ) -> tuple[int, int]:
         """
         URL 목록을 discovered 상태로 bulk insert.
         중복(url_hash)은 ON DUPLICATE KEY UPDATE로 조용히 무시.
         t_domain.excluded=1 인 host 는 애초에 insert 대상에서 제외한다.
+        mode: 발견에 사용된 모드(google_news 전용: "search"|"rss"). 최초 발견 시점의
+        값만 저장되고(ON DUPLICATE KEY UPDATE 대상 아님) 재발견 시 덮어쓰지 않는다.
         반환: (inserted, skipped)
         """
         if not raw_urls:
@@ -80,6 +83,7 @@ class CrawlUrlRepo:
                 "source":     source_type,
                 "cdate":      now.date(),
                 "created_at": now,
+                "mode":       mode,
             })
 
         excluded_hosts = self._domain_repo.get_excluded_hosts(

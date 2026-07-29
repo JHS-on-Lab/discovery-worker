@@ -360,7 +360,7 @@ class UCGoogleNewsAdapter:
         page = int(cursor) if cursor else 1
 
         if page > self._max_pages:
-            return DiscoverResult(urls=[], next_cursor=None, has_more=False)
+            return DiscoverResult(urls=[], next_cursor=None, has_more=False, mode="search")
 
         # 페이지 번호와 무관하게 매 요청 전 지터 — page==1(새 키워드 시작)에서도
         # 적용해야 이전 키워드 처리 직후 딜레이 없이 바로 이어지는 걸 막는다.
@@ -419,12 +419,12 @@ class UCGoogleNewsAdapter:
                 f"google no more results keyword='{keyword}' page={page}",
                 extra={"component": "adapter"},
             )
-            return DiscoverResult(urls=[], next_cursor=None, has_more=False)
+            return DiscoverResult(urls=[], next_cursor=None, has_more=False, mode="search")
 
         has_more = len(urls) >= 8 and page < self._max_pages
         next_cursor = str(page + 1) if has_more else None
 
-        return DiscoverResult(urls=urls, next_cursor=next_cursor, has_more=has_more)
+        return DiscoverResult(urls=urls, next_cursor=next_cursor, has_more=has_more, mode="search")
 
     # ------------------------------------------------------------------
     # rss 모드
@@ -433,7 +433,7 @@ class UCGoogleNewsAdapter:
     def _discover_rss(self, keyword: str, cursor: str | None) -> DiscoverResult:
         """RSS 피드 수집 후 Chrome으로 CBMi URL → 실제 언론사 URL 변환."""
         if cursor is not None:
-            return DiscoverResult(urls=[], next_cursor=None, has_more=False)
+            return DiscoverResult(urls=[], next_cursor=None, has_more=False, mode="rss")
 
         from app.fetch._client import make_client
 
@@ -448,7 +448,7 @@ class UCGoogleNewsAdapter:
         urls = self._resolve_cbmi(cbmi_urls)
         _log.info(f"rss mode: resolved {len(urls)}/{len(cbmi_urls)}")
 
-        return DiscoverResult(urls=urls, next_cursor=None, has_more=False)
+        return DiscoverResult(urls=urls, next_cursor=None, has_more=False, mode="rss")
 
     def _resolve_cbmi(self, cbmi_urls: list[str]) -> list[str]:
         """Chrome으로 CBMi URL 탐색 → 최종 언론사 URL 수집.

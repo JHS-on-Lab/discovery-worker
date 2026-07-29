@@ -12,6 +12,13 @@
 
 ---
 
+## 7d0b10e — 2026-07-29
+docs: 구글 RSS 폴백 봇 차단 감지 조건 문서화 + 메모리 완화 조치 4·5번 기록
+
+- docs/commit-log.md
+- docs/discovery-worker-design.md
+- docs/memory-oom-mitigation.md
+
 ## 5cc152a — 2026-07-29
 perf: pageLoadStrategy=eager + current_url 폴링으로 CBMi 해석 시 불필요한 페이지 로드 대기 제거
 
