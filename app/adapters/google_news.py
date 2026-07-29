@@ -90,7 +90,7 @@ def _host_resolver_rules(domains: tuple[str, ...]) -> str:
     return ", ".join(rules)
 
 
-def _wait_for_cbmi_redirect(driver, timeout: float = 10.0, poll_interval: float = 0.3) -> str:
+def _wait_for_cbmi_redirect(driver, timeout: float = 10.0, poll_interval: float = 0.05) -> str:
     """CBMi 리다이렉트가 news.google.com 을 벗어날 때까지 current_url 을 폴링한다.
 
     page_load_strategy=eager 라 driver.get() 은 news.google.com 셸의 DOM 준비
@@ -98,11 +98,24 @@ def _wait_for_cbmi_redirect(driver, timeout: float = 10.0, poll_interval: float 
     끝날 수 있다 — 그래서 get() 리턴을 신뢰하지 않고 URL 이 실제로 바뀔 때까지
     직접 기다린다. timeout 안에 안 바뀌면 마지막 상태(대개 여전히 news.google.com)
     그대로 반환 — 호출부에서 unresolved 로 처리된다.
+
+    URL 이 바뀐 걸 확인하는 즉시 Page.stopLoading() 으로 그 페이지의 나머지 로딩을
+    끊는다 — current_url 은 탐색이 커밋되는 시점에 갱신되는데, 이는 목적지 페이지가
+    자기 JS(광고/트래커 iframe 포함)를 실행하기 이전이므로, 빨리 감지해서(poll_interval
+    단축) 끊을수록 그 페이지가 만드는 cross-origin iframe(=renderer 프로세스) 수가
+    줄어든다 — 도메인 차단 목록에 없는 광고 네트워크가 있는 페이지에도 효과가 있다
+    (2026-07-29, 목록 기반 차단만으로 못 잡는 롱테일 대응). "news.google.com 을
+    벗어났는가"라는 URL 판별 기준 자체는 그대로라 기존 대비 URL 유실 위험은 없다 —
+    같은 시점에 잡는 값을 그대로 반환하고, 거기 이후의 불필요한 로딩만 끊는 것뿐이다.
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         current = driver.current_url
         if "news.google.com" not in urlparse(current).netloc:
+            try:
+                driver.execute_cdp_cmd("Page.stopLoading", {})
+            except Exception:
+                pass  # stopLoading 실패해도 URL 은 이미 확보됐으니 무시하고 진행
             return current
         time.sleep(poll_interval)
     return driver.current_url
@@ -382,9 +395,6 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
                 driver.switch_to.new_window("tab")
                 driver.get(url)
                 final = _wait_for_cbmi_redirect(driver)
-                # 리다이렉트 확인 후 자연스러운 간격(탐지 회피 목적) — 페이지의
-                # 하위 리소스 로드를 기다리는 용도가 아니므로 리다이렉트 감지 뒤로 옮김.
-                jitter_sleep(self._delay_sec)
                 if "google.com" not in urlparse(final).netloc:
                     resolved.append(final)
                 else:
@@ -392,8 +402,16 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
                         f"cbmi unresolved: {url[:80]}",
                         extra={"component": "adapter"},
                     )
+                # URL 확보 즉시 탭을 닫는다 — _wait_for_cbmi_redirect() 의
+                # Page.stopLoading() 이후에도 그대로 열어두면 이미 실행 중인
+                # setTimeout/지연 스크립트가 계속 광고 iframe 을 만들 수 있어
+                # (2026-07-29 실측 — 탭을 안 닫고 1.5초 두면 renderer 11→21,
+                # 닫으면 5~18 수준으로 확인), stopLoading 의 이득이 죽기 전에
+                # 닫아버린다. 탐지 회피용 간격은 탭을 닫은 뒤(=다음 탐색 전)로
+                # 옮겨 페이지의 하위 리소스 로드를 기다리는 데 쓰이지 않게 한다.
                 driver.close()
                 driver.switch_to.window(main_handle)
+                jitter_sleep(self._delay_sec)
             except Exception as exc:
                 _log.warning(
                     f"cbmi navigate hung at {i}/{total} — resetting driver, "

@@ -12,6 +12,13 @@
 
 ---
 
+## ec4741c — 2026-07-29
+docs: 배치 재시작 → URL별 탭 열고 닫기 교체 반영 (7번 섹션 추가)
+
+- docs/commit-log.md
+- docs/discovery-worker-design.md
+- docs/memory-oom-mitigation.md
+
 ## d749746 — 2026-07-29
 perf: rss 모드 CBMi 해석을 배치 재시작 대신 URL별 새 탭 열고 즉시 닫기로 변경
 
