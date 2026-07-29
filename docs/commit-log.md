@@ -12,6 +12,12 @@
 
 ---
 
+## 6d5c71e — 2026-07-29
+perf: CBMi 리다이렉트 감지 즉시 Page.stopLoading + 탭 즉시 닫기로 광고 iframe 차단 강화
+
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## ec4741c — 2026-07-29
 docs: 배치 재시작 → URL별 탭 열고 닫기 교체 반영 (7번 섹션 추가)
 
