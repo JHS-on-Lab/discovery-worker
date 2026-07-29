@@ -24,17 +24,16 @@ headless 모드는 Google Bot 감지에 걸리므로 headless=False 로 실행.
 행동 자연화(behavioral naturalization) — IP 로테이션 없이 탐지 신호를 줄이기 위한 조치:
   - 영구 Chrome 프로필(GOOGLE_CHROME_PROFILE_DIR, WORKER_ID별 분리): 매 실행마다
     빈 세션이 아니라 쿠키·로컬스토리지가 누적된 상태로 접속.
-  - 요청 간격에 랜덤 지터(_jitter_sleep) — 고정 간격은 그 자체로 자동화 신호.
-    페이지 번호와 무관하게 매 요청 전 적용해 키워드 전환 시에도 딜레이 없이
-    바로 이어지지 않게 한다.
-  - 결과 페이지 로드 후 스크롤 시뮬레이션(_simulate_reading) 후 DOM 파싱.
+  - 요청 간격에 랜덤 지터(jitter_sleep, app.adapters._chrome_behavior) — 고정 간격은
+    그 자체로 자동화 신호. 페이지 번호와 무관하게 매 요청 전 적용해 키워드 전환
+    시에도 딜레이 없이 바로 이어지지 않게 한다.
+  - 결과 페이지 로드 후 스크롤 시뮬레이션(simulate_reading) 후 DOM 파싱.
   - Chrome 창 크기를 무작위 해상도 중에서 선택 — 워커 전체가 동일 해상도면 지문이 됨.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import random
 import sys
 import time
@@ -46,8 +45,9 @@ from xml.etree import ElementTree as ET
 
 from app import config
 from app.adapters import _profile_lock
+from app.adapters._base import page_limit_exceeded
+from app.adapters._chrome_behavior import ChromeLifecycleMixin, WINDOW_SIZES, jitter_sleep, simulate_reading
 from app.adapters._chrome_detect import detect_chrome_binary, detect_chrome_major, ensure_xvfb
-from app.adapters._process_kill import kill_process_tree
 from app.types import BotBlockedError, DiscoverMode, DiscoverResult, SourceType
 
 _log = logging.getLogger(__name__)
@@ -64,14 +64,6 @@ _DEFAULT_DELAY_SEC = 1.5
 
 # rss 모드 CBMi URL 해석 시 이 개수마다 Chrome 재시작 (renderer 프로세스 누적 방지)
 _CBMI_BATCH_SIZE = 20
-
-# 창 크기를 워커마다 고정값으로 통일하면 그 자체가 지문이 되므로 흔한 해상도 중 무작위 선택
-_WINDOW_SIZES = ("1366,768", "1440,900", "1536,864", "1600,900", "1920,1080")
-
-
-def _jitter_sleep(base_sec: float, spread: float = 0.4) -> None:
-    """고정 간격 대신 자연스러운 편차를 준 대기. spread=0.4 → base의 ±40% 범위."""
-    time.sleep(max(0.1, random.uniform(base_sec * (1 - spread), base_sec * (1 + spread))))
 
 
 def _wait_for_cbmi_redirect(driver, timeout: float = 10.0, poll_interval: float = 0.3) -> str:
@@ -92,16 +84,6 @@ def _wait_for_cbmi_redirect(driver, timeout: float = 10.0, poll_interval: float 
     return driver.current_url
 
 
-def _simulate_reading(driver) -> None:
-    """사람이 결과 페이지를 훑어보는 것처럼 스크롤 + 짧은 대기를 흉내낸다."""
-    try:
-        for _ in range(random.randint(1, 3)):
-            driver.execute_script(f"window.scrollBy(0, {random.randint(200, 600)});")
-            time.sleep(random.uniform(0.3, 0.9))
-    except Exception:
-        pass
-
-
 def _parse_region(region: str) -> tuple[str, dict[str, str]]:
     """t_keyword.source_options_json 의 region 값을 (host, extra_params) 로 분해한다.
 
@@ -115,8 +97,7 @@ def _parse_region(region: str) -> tuple[str, dict[str, str]]:
     return parsed.netloc, extra
 
 
-
-class UCGoogleNewsAdapter:
+class UCGoogleNewsAdapter(ChromeLifecycleMixin):
     """
     GOOGLE_DISCOVERY_MODE 에 따라 search / rss 방식으로 동작하는 Google 뉴스 어댑터.
     두 모드 모두 undetected-chromedriver 를 사용한다.
@@ -177,7 +158,7 @@ class UCGoogleNewsAdapter:
             opts.add_argument("--disable-dev-shm-usage")
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-software-rasterizer")
-            opts.add_argument(f"--window-size={random.choice(_WINDOW_SIZES)}")
+            opts.add_argument(f"--window-size={random.choice(WINDOW_SIZES)}")
             # 메모리 절감. 검색결과 페이지에서 XPath로 링크 텍스트만 읽고 이미지/시각적
             # 렌더링 결과는 안 쓰므로 기능상 리스크 없음(mem 로그에서 관찰된 children
             # 프로세스 급증(15→50)이 BackForwardCache/Site Isolation과 상관관계).
@@ -256,12 +237,12 @@ class UCGoogleNewsAdapter:
     def _discover_search(self, keyword: str, cursor: str | None) -> DiscoverResult:
         page = int(cursor) if cursor else 1
 
-        if page > self._max_pages:
+        if page_limit_exceeded(page, self._max_pages):
             return DiscoverResult(urls=[], next_cursor=None, has_more=False, mode=DiscoverMode.SEARCH)
 
         # 페이지 번호와 무관하게 매 요청 전 지터 — page==1(새 키워드 시작)에서도
         # 적용해야 이전 키워드 처리 직후 딜레이 없이 바로 이어지는 걸 막는다.
-        _jitter_sleep(self._delay_sec)
+        jitter_sleep(self._delay_sec)
 
         query = {
             "q":     keyword,
@@ -292,8 +273,8 @@ class UCGoogleNewsAdapter:
             self.close()
             raise
 
-        _jitter_sleep(self._delay_sec)
-        _simulate_reading(driver)
+        jitter_sleep(self._delay_sec)
+        simulate_reading(driver)
 
         urls = _extract_search_urls(driver)
 
@@ -378,7 +359,7 @@ class UCGoogleNewsAdapter:
                     final = _wait_for_cbmi_redirect(driver)
                     # 리다이렉트 확인 후 자연스러운 간격(탐지 회피 목적) — 페이지의
                     # 하위 리소스 로드를 기다리는 용도가 아니므로 리다이렉트 감지 뒤로 옮김.
-                    _jitter_sleep(self._delay_sec)
+                    jitter_sleep(self._delay_sec)
                     if "google.com" not in urlparse(final).netloc:
                         resolved.append(final)
                     else:
@@ -411,30 +392,6 @@ class UCGoogleNewsAdapter:
 
         return resolved
 
-    # ------------------------------------------------------------------
-    # 공통
-    # ------------------------------------------------------------------
-
-    def close(self) -> None:
-        if self._driver:
-            browser_pid = getattr(self._driver, "browser_pid", None)
-            try:
-                self._driver.quit()
-            except Exception:
-                pass
-            try:
-                self._driver.quit = lambda *a, **kw: None
-            except Exception:
-                pass
-            # uc.Chrome.quit() 은 브라우저에 SIGTERM 만 보내고 종료를 확인하지 않는다 —
-            # 특히 hang 직후 정리하는 이 경로에서 응답 없이 orphan 으로 남기 쉽다.
-            kill_process_tree(browser_pid, expected_user_data_dir=self._user_data_dir)
-            _profile_lock.release(self._profile_lock_file)
-            self._profile_lock_file = None
-            self._driver = None
-
-    def __del__(self) -> None:
-        self.close()
 
 
 _BLOCK_PAGE_MARKERS = (

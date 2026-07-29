@@ -15,6 +15,12 @@ import time
 from app.types import DiscoverResult
 
 
+def page_limit_exceeded(page_num: int, max_pages: int) -> bool:
+    """공용 페이지 상한 체크. PaginatedAdapter._exceeded() 와, jitter 지연을 써서
+    이 베이스를 상속하지 않는 google_news/baidu_news 양쪽에서 공유한다."""
+    return page_num > max_pages
+
+
 class PaginatedAdapter:
     """max_pages / delay_ms 를 가지는 어댑터의 공통 베이스."""
 
@@ -25,7 +31,7 @@ class PaginatedAdapter:
 
     def _exceeded(self, page_num: int) -> DiscoverResult | None:
         """max_pages 초과 시 빈 결과 반환, 아니면 None."""
-        if page_num > self._max_pages:
+        if page_limit_exceeded(page_num, self._max_pages):
             return DiscoverResult(urls=[], next_cursor=None, has_more=False)
         return None
 

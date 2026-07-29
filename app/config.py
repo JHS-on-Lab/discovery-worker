@@ -10,8 +10,13 @@
 
 import os
 import sys
+from datetime import timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
+
+# 이 프로젝트는 항상 KST 로 로그/타임스탬프를 다룬다 — env var 로 설정하는 값이
+# 아니라 고정 상수지만, 4개 파일에서 각자 선언하던 걸(2026-07-29 품질 리뷰) 모았다.
+KST = timezone(timedelta(hours=9))
 
 # .env (공통) 먼저 로드 후 .env.{APP_ENV} 로 override.
 #   로컬 Windows : APP_ENV 미설정 → .env + .env.local

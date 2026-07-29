@@ -12,6 +12,20 @@
 
 ---
 
+## 76efeec — 2026-07-29
+refactor: 오늘 세션 diff에 대한 품질 리뷰(reuse/simplification/efficiency/altitude) 적용
+
+- app/adapters/_chrome_detect.py
+- app/adapters/baidu_news.py
+- app/adapters/google_news.py
+- app/memlog.py
+- app/ports.py
+- app/repository/crawl_url_repo.py
+- app/scheduling/dispatcher.py
+- app/types.py
+- docs/commit-log.md
+- scripts/check_chrome_isolation.py
+
 ## 4e122a9 — 2026-07-29
 fix: bulk_insert_discovered() 의 inserted/skipped 카운트가 rowcount 에 의존해 부정확하던 문제 수정
 

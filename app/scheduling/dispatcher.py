@@ -22,7 +22,7 @@ from __future__ import annotations
 import threading
 import time
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 
 import httpx
 
@@ -40,7 +40,7 @@ from app.types import BotBlockedError
 
 logger = logging.getLogger(__name__)
 
-KST = timezone(timedelta(hours=9))
+KST = config.KST
 
 _MAX_403_RETRIES      = 5
 _MAX_BOT_DETECT_RETRIES = 5
@@ -186,6 +186,21 @@ def _run_one(
     started_mono = time.monotonic()
     total_found = total_ins = total_skp = 0
 
+    def _log_discovery(duration_ms: int, error_msg: str | None = None) -> None:
+        """성공/실패 양쪽에서 같은 필드로 DiscoveryLog 를 기록 — total_* 는 호출
+        시점의 현재 값을 그대로 읽는다(클로저, 루프 도중 누적되는 값이라 스냅샷 아님)."""
+        log_repo.insert_discovery(DiscoveryLog(
+            keyword_id    = keyword_id,
+            source_type   = source,
+            worker_id     = worker_id,
+            started_at    = started_at,
+            duration_ms   = duration_ms,
+            urls_found    = total_found,
+            urls_inserted = total_ins,
+            urls_skipped  = total_skp,
+            error_msg     = error_msg,
+        ))
+
     try:
         # retry_pending=True 면 이전 수집이 중단된 적 있음 (재시도 모드)
         # → 항상 1페이지부터 full scan: 대기 시간 중 올라온 신규 콘텐츠 누락 방지 + 미수집 구간 완성
@@ -232,16 +247,7 @@ def _run_one(
 
         kw_repo.set_retry_pending(keyword_id, False)
 
-        log_repo.insert_discovery(DiscoveryLog(
-            keyword_id    = keyword_id,
-            source_type   = source,
-            worker_id     = worker_id,
-            started_at    = started_at,
-            duration_ms   = duration_ms,
-            urls_found    = total_found,
-            urls_inserted = total_ins,
-            urls_skipped  = total_skp,
-        ))
+        _log_discovery(duration_ms)
 
         logger.info(
             f"done keyword='{keyword}' found={total_found} "
@@ -295,17 +301,7 @@ def _run_one(
             pass
 
         try:
-            log_repo.insert_discovery(DiscoveryLog(
-                keyword_id    = keyword_id,
-                source_type   = source,
-                worker_id     = worker_id,
-                started_at    = started_at,
-                duration_ms   = duration_ms,
-                urls_found    = total_found,
-                urls_inserted = total_ins,
-                urls_skipped  = total_skp,
-                error_msg     = error_msg[:500],
-            ))
+            _log_discovery(duration_ms, error_msg=error_msg[:500])
         except Exception:
             logger.exception(
                 "failed to write error log",

@@ -23,15 +23,16 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app import config
+from app.adapters import make_adapter
 
 _SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock", "duckduckgo_news")
-KST = timezone(timedelta(hours=9))
+KST = config.KST
 
 
 # ---------------------------------------------------------------------------
@@ -46,35 +47,6 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run",   action="store_true", help="DB 에 쓰지 않고 URL 만 출력")
     p.add_argument("--worker-id", default="script", help="워커 식별자 (기본: script)")
     return p.parse_args()
-
-
-# ---------------------------------------------------------------------------
-# 어댑터 팩토리
-# ---------------------------------------------------------------------------
-
-def _make_adapter(source: str, max_pages: int | None):
-    pt = source.upper()
-    kwargs = {"max_pages": max_pages} if max_pages else {}
-
-    if pt == "NAVER_NEWS":
-        from app.adapters.naver_news import NaverNewsAdapter
-        return NaverNewsAdapter(**kwargs)
-    if pt == "DAUM_NEWS":
-        from app.adapters.daum_news import DaumNewsAdapter
-        return DaumNewsAdapter(**kwargs)
-    if pt == "NAVER_STOCK":
-        from app.adapters.naver_stock import NaverStockAdapter
-        return NaverStockAdapter(**kwargs)
-    if pt == "GOOGLE_NEWS":
-        from app.adapters.google_news import UCGoogleNewsAdapter
-        return UCGoogleNewsAdapter(**kwargs)
-    if pt == "BAIDU_NEWS":
-        from app.adapters.baidu_news import BaiduNewsAdapter
-        return BaiduNewsAdapter(**kwargs)
-    if pt == "DUCKDUCKGO_NEWS":
-        from app.adapters.duckduckgo_news import DuckDuckGoNewsAdapter
-        return DuckDuckGoNewsAdapter(**kwargs)
-    raise ValueError(f"지원하지 않는 source: {source}")
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +101,7 @@ def _run_keyword_mode(args: argparse.Namespace) -> None:
     print(f"[source={args.source}] keyword='{args.keyword}' (id={keyword_id}) 발견 시작"
           + (" (dry-run)" if dry else ""))
 
-    adapter = _make_adapter(args.source, args.max_pages)
+    adapter = make_adapter(args.source, args.max_pages)
     mono_start = time.monotonic()
 
     urls, _ = _discover_all(adapter, args.keyword)
@@ -206,7 +178,7 @@ def _run_db_mode(args: argparse.Namespace) -> None:
             url_repo  = CrawlUrlRepo(engine)
             log_repo  = CollectionLogRepo(engine)
 
-        adapter    = _make_adapter(source_type, args.max_pages)
+        adapter    = make_adapter(source_type, args.max_pages)
         started_at = datetime.now(KST)
         mono_start = time.monotonic()
 

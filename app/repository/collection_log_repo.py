@@ -5,11 +5,11 @@ collection_log 테이블 접근 — 발견·추출 실행 이력 기록.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 from sqlalchemy import Engine, text
 
-KST = timezone(timedelta(hours=9))
+from app.config import KST
 
 
 @dataclass

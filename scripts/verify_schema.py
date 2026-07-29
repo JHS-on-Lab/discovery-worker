@@ -9,36 +9,12 @@
 
 import argparse
 import sys
-from contextlib import contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import text, inspect, create_engine
-from sqlalchemy.engine import URL
-from app import config
-from app.repository.db import db_context
-
-
-@contextmanager
-def _direct_engine():
-    """SSH 터널 없이 RDS_HOST:RDS_PORT로 바로 접속하는 엔진 (TUNNEL_ENABLED 설정 무시)."""
-    # URL.create() 는 username/password 를 자동으로 URL-encoding 한다.
-    # f-string 조립은 비밀번호에 '@' 같은 특수문자가 있으면 DSN 파싱 자체가 깨진다.
-    dsn = URL.create(
-        "mysql+pymysql",
-        username=config.RDS_USER,
-        password=config.RDS_PASSWORD,
-        host=config.RDS_HOST,
-        port=config.RDS_PORT,
-        database=config.RDS_DB,
-        query={"charset": "utf8mb4"},
-    )
-    engine = create_engine(dsn, pool_pre_ping=True, connect_args={"connect_timeout": 5})
-    try:
-        yield engine
-    finally:
-        engine.dispose()
+from sqlalchemy import text, inspect
+from app.repository.db import db_context, direct_engine
 
 EXPECTED_TABLES = {"t_keyword", "t_crawl_url", "t_domain", "t_collection_log"}
 
@@ -47,12 +23,14 @@ EXPECTED_COLUMNS = {
         "id", "keyword", "source_type", "interval_seconds",
         "next_discover_at", "retry_pending",
         "enabled", "priority", "display_name", "disabled_reason",
+        "source_options_json",
     },
     "t_crawl_url": {
         "id", "url", "url_hash", "host", "keyword_id", "source_type",
         "status", "attempt_count", "last_error_code", "last_error_msg",
         "next_retry_at", "claimed_at", "claimed_by", "is_manual", "priority",
         "extraction_method", "collected_date", "created_at", "updated_at",
+        "discovery_mode",
     },
     "t_domain": {
         "host", "rules_json", "rules_enabled", "rules_version",
@@ -85,7 +63,7 @@ def main():
     args = p.parse_args()
 
     ok = True
-    connect = _direct_engine if args.direct else db_context
+    connect = direct_engine if args.direct else db_context
 
     with connect() as engine:
         insp   = inspect(engine)

@@ -26,7 +26,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import random
 import sys
 import time
@@ -35,8 +34,9 @@ from urllib.parse import urlencode, urlparse
 
 from app import config
 from app.adapters import _profile_lock
+from app.adapters._base import page_limit_exceeded
+from app.adapters._chrome_behavior import ChromeLifecycleMixin, WINDOW_SIZES, jitter_sleep, simulate_reading
 from app.adapters._chrome_detect import detect_chrome_binary, detect_chrome_major, ensure_xvfb
-from app.adapters._process_kill import kill_process_tree
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
 _log = logging.getLogger(__name__)
@@ -45,31 +45,12 @@ _SEARCH_URL = "https://www.baidu.com/s"
 
 _DEFAULT_DELAY_SEC = 1.5
 
-_WINDOW_SIZES = ("1366,768", "1440,900", "1536,864", "1600,900", "1920,1080")
-
 # 캡차/보안 확인 페이지 판별 시그니처 (2026-07-10 curl 테스트로 확인).
 _BLOCK_HOST_MARKERS = ("wappass.baidu.com",)
 _BLOCK_TITLE_MARKERS = ("百度安全验证",)
 
 
-def _jitter_sleep(base_sec: float, spread: float = 0.4) -> None:
-    """고정 간격 대신 자연스러운 편차를 준 대기. spread=0.4 → base의 ±40% 범위."""
-    time.sleep(max(0.1, random.uniform(base_sec * (1 - spread), base_sec * (1 + spread))))
-
-
-def _simulate_reading(driver) -> None:
-    """사람이 결과 페이지를 훑어보는 것처럼 스크롤 + 짧은 대기를 흉내낸다."""
-    try:
-        for _ in range(random.randint(1, 3)):
-            driver.execute_script(f"window.scrollBy(0, {random.randint(200, 600)});")
-            time.sleep(random.uniform(0.3, 0.9))
-    except Exception:
-        pass
-
-
-
-
-class BaiduNewsAdapter:
+class BaiduNewsAdapter(ChromeLifecycleMixin):
     source_type: str = SourceType.BAIDU_NEWS
 
     def __init__(
@@ -103,7 +84,7 @@ class BaiduNewsAdapter:
             opts.add_argument("--disable-dev-shm-usage")
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-software-rasterizer")
-            opts.add_argument(f"--window-size={random.choice(_WINDOW_SIZES)}")
+            opts.add_argument(f"--window-size={random.choice(WINDOW_SIZES)}")
             # 메모리 절감. 검색결과 페이지에서 XPath로 링크 텍스트만 읽고 이미지/시각적
             # 렌더링 결과는 안 쓰므로 기능상 리스크 없음(google_news.py와 동일 근거).
             #   - BackForwardCache: 뒤로가기 없이 앞으로만 이동하므로 순수 낭비
@@ -156,10 +137,10 @@ class BaiduNewsAdapter:
         pn = int(cursor) if cursor else 0
         page_num = pn // 10 + 1
 
-        if page_num > self._max_pages:
+        if page_limit_exceeded(page_num, self._max_pages):
             return DiscoverResult(urls=[], next_cursor=None, has_more=False)
 
-        _jitter_sleep(self._delay_sec)
+        jitter_sleep(self._delay_sec)
 
         params = urlencode({
             "rtt":  1,
@@ -185,8 +166,8 @@ class BaiduNewsAdapter:
             self.close()
             raise
 
-        _jitter_sleep(self._delay_sec)
-        _simulate_reading(driver)
+        jitter_sleep(self._delay_sec)
+        simulate_reading(driver)
 
         if _is_blocked(driver):
             _log.warning(
@@ -213,27 +194,6 @@ class BaiduNewsAdapter:
         next_cursor = str(pn + 10) if has_more else None
 
         return DiscoverResult(urls=urls, next_cursor=next_cursor, has_more=has_more)
-
-    def close(self) -> None:
-        if self._driver:
-            browser_pid = getattr(self._driver, "browser_pid", None)
-            try:
-                self._driver.quit()
-            except Exception:
-                pass
-            try:
-                self._driver.quit = lambda *a, **kw: None
-            except Exception:
-                pass
-            # uc.Chrome.quit() 은 브라우저에 SIGTERM 만 보내고 종료를 확인하지 않는다 —
-            # 특히 hang 직후 정리하는 이 경로에서 응답 없이 orphan 으로 남기 쉽다.
-            kill_process_tree(browser_pid, expected_user_data_dir=self._user_data_dir)
-            _profile_lock.release(self._profile_lock_file)
-            self._profile_lock_file = None
-            self._driver = None
-
-    def __del__(self) -> None:
-        self.close()
 
 
 def _is_blocked(driver) -> bool:

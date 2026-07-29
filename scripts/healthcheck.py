@@ -15,11 +15,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL
+from sqlalchemy import text
 
 from app import config
-from app.repository.db import db_context
+from app.repository.db import db_context, direct_engine
 
 
 def _print_result(row) -> None:
@@ -50,28 +49,15 @@ def check_db_direct() -> bool:
     """
     print("[ DB — 직접 접속 (SSH 터널 미사용) ]")
     print(f"  대상: {config.RDS_USER}@{config.RDS_HOST}:{config.RDS_PORT}/{config.RDS_DB}")
-    # URL.create() 는 username/password 를 자동으로 URL-encoding 한다.
-    # f-string 조립은 비밀번호에 '@' 같은 특수문자가 있으면 DSN 파싱 자체가 깨진다.
-    dsn = URL.create(
-        "mysql+pymysql",
-        username=config.RDS_USER,
-        password=config.RDS_PASSWORD,
-        host=config.RDS_HOST,
-        port=config.RDS_PORT,
-        database=config.RDS_DB,
-        query={"charset": "utf8mb4"},
-    )
-    engine = create_engine(dsn, pool_pre_ping=True, connect_args={"connect_timeout": 5})
     try:
-        with engine.connect() as conn:
-            row = conn.execute(text("SELECT VERSION(), DATABASE()")).fetchone()
+        with direct_engine() as engine:
+            with engine.connect() as conn:
+                row = conn.execute(text("SELECT VERSION(), DATABASE()")).fetchone()
         _print_result(row)
         return True
     except Exception as e:
         print(f"  → 실패: {e}\n")
         return False
-    finally:
-        engine.dispose()
 
 
 def main() -> None:
