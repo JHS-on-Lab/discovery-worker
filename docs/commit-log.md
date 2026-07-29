@@ -12,6 +12,12 @@
 
 ---
 
+## 4e122a9 — 2026-07-29
+fix: bulk_insert_discovered() 의 inserted/skipped 카운트가 rowcount 에 의존해 부정확하던 문제 수정
+
+- app/repository/crawl_url_repo.py
+- docs/commit-log.md
+
 ## 0073cf8 — 2026-07-29
 feat: t_crawl_url.discovery_mode 로 google_news search/rss 발견 모드 영구 기록
 

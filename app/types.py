@@ -22,6 +22,12 @@ class SourceType(str, Enum):
     DUCKDUCKGO_NEWS = "DUCKDUCKGO_NEWS"
 
 
+class DiscoverMode(str, Enum):
+    """발견에 사용된 모드 — 현재는 google_news 전용(다른 소스는 구분 없음)."""
+    SEARCH = "search"
+    RSS    = "rss"
+
+
 # ---------------------------------------------------------------------------
 # Discovery 결과
 # ---------------------------------------------------------------------------
@@ -31,8 +37,8 @@ class DiscoverResult:
     urls: list[str]
     next_cursor: str | None     # 다음 페이지/스크롤 커서. None이면 마지막 페이지.
     has_more: bool
-    mode: str | None = None    # 발견에 사용된 모드(google_news 전용: "search"|"rss"). 기본값이 있어
-                                # 다른 어댑터는 이 필드를 몰라도 됨 — DiscoverResult(...) 그대로 동작
+    mode: DiscoverMode | None = None  # 기본값이 있어 다른 어댑터는 이 필드를 몰라도 됨
+                                       # — DiscoverResult(...) 그대로 동작
 
 
 class BotBlockedError(Exception):

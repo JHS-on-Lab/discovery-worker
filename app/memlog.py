@@ -62,11 +62,15 @@ def log_memory_usage(worker_id: str) -> None:
     rss_children = 0
     by_type: dict[str, list[int]] = {}  # type -> [count, rss_sum]
     for child in children:
-        ctype = _child_type(child)
-        try:
-            rss = child.memory_info().rss
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            rss = 0  # zombie 등 — 이미 회수된 메모리, 0으로 집계
+        # oneshot() 은 status/name/memory_info 등을 한 번의 procfs 읽기로 캐싱해
+        # 자식마다 여러 번 따로 읽는 것보다 저렴하다(cmdline() 은 별도 파일이라
+        # 캐싱 대상 아님, 그래도 나머지 호출들엔 효과 있음).
+        with child.oneshot():
+            ctype = _child_type(child)
+            try:
+                rss = child.memory_info().rss
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                rss = 0  # zombie 등 — 이미 회수된 메모리, 0으로 집계
         rss_children += rss
         entry = by_type.setdefault(ctype, [0, 0])
         entry[0] += 1

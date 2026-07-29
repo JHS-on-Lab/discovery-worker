@@ -103,22 +103,16 @@ class CrawlUrlRepo:
         if not rows:
             return 0, len(candidates)
 
+        batch_hashes = {row["hash"] for row in rows}
         with self._engine.begin() as conn:
             existing_before = set(conn.execute(
                 _SELECT_EXISTING_HASHES_SQL,
-                {"hashes": list({row["hash"] for row in rows})},
+                {"hashes": list(batch_hashes)},
             ).scalars())
             conn.execute(_INSERT_SQL, rows)
 
-        # 신규 = 이전에 없던 hash 이면서, 이 배치 안에서도 처음 등장하는 경우만
-        # (같은 배치 안에 동일 URL 이 중복으로 들어올 수 있음 — 그것도 skip 으로 센다).
-        seen: set[str] = set()
-        inserted = 0
-        for row in rows:
-            h = row["hash"]
-            if h in existing_before or h in seen:
-                continue
-            seen.add(h)
-            inserted += 1
+        # 신규 = 이전에 없던 hash 중 이 배치에서 유일한 것들. batch_hashes 는 이미
+        # 같은 배치 안의 중복(동일 URL 이 여러 번 들어온 경우)을 집합 연산으로 흡수한다.
+        inserted = len(batch_hashes - existing_before)
 
         return inserted, len(candidates) - inserted

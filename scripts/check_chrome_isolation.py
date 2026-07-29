@@ -42,6 +42,7 @@ import psutil
 
 from app import config
 from app.adapters.google_news import UCGoogleNewsAdapter
+from app.memlog import _child_type
 
 
 def _section(title: str) -> None:
@@ -49,7 +50,9 @@ def _section(title: str) -> None:
 
 
 def _renderer_count(driver) -> int:
-    """driver 의 browser_pid 자식들 중 --type=renderer 개수를 센다."""
+    """driver 의 browser_pid 자식들 중 renderer 개수를 센다.
+    app.memlog._child_type() 재사용 — mem 로그의 renderer 판정과 동일 기준
+    (zombie 는 커널이 이미 메모리 회수해 renderer 급증의 원인이 아니므로 제외)."""
     browser_pid = getattr(driver, "browser_pid", None)
     if not browser_pid:
         return -1
@@ -57,14 +60,7 @@ def _renderer_count(driver) -> int:
         parent = psutil.Process(browser_pid)
     except psutil.NoSuchProcess:
         return -1
-    count = 0
-    for child in parent.children(recursive=True):
-        try:
-            if any(arg.startswith("--type=renderer") for arg in child.cmdline()):
-                count += 1
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
-    return count
+    return sum(1 for child in parent.children(recursive=True) if _child_type(child) == "renderer")
 
 
 def main() -> None:

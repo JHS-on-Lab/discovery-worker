@@ -35,6 +35,7 @@ from app.repository.db import db_context
 from app.repository.keyword_repo import KeywordRepo
 from app.repository.crawl_url_repo import CrawlUrlRepo
 from app.repository.collection_log_repo import CollectionLogRepo, DiscoveryLog
+from app.ports import SourceOptionsAware
 from app.types import BotBlockedError
 
 logger = logging.getLogger(__name__)
@@ -194,8 +195,8 @@ def _run_one(
         page     = 1
 
         # source_options_json(예: google_news 의 region 오버라이드)을 지원하는
-        # 어댑터에만 적용 — 대부분의 어댑터는 이 훅이 없어 조용히 스킵된다.
-        if hasattr(adapter, "apply_source_options"):
+        # 어댑터에만 적용 — SourceOptionsAware 를 만족 안 하는 어댑터는 조용히 스킵된다.
+        if isinstance(adapter, SourceOptionsAware):
             adapter.apply_source_options(kw.get("source_options_json"))
 
         if is_retry:
