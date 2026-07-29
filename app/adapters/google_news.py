@@ -73,6 +73,24 @@ def _jitter_sleep(base_sec: float, spread: float = 0.4) -> None:
     time.sleep(max(0.1, random.uniform(base_sec * (1 - spread), base_sec * (1 + spread))))
 
 
+def _wait_for_cbmi_redirect(driver, timeout: float = 10.0, poll_interval: float = 0.3) -> str:
+    """CBMi 리다이렉트가 news.google.com 을 벗어날 때까지 current_url 을 폴링한다.
+
+    page_load_strategy=eager 라 driver.get() 은 news.google.com 셸의 DOM 준비
+    시점에 이미 리턴할 수 있고, 실제 리다이렉트(클라이언트사이드 JS)는 그 이후에
+    끝날 수 있다 — 그래서 get() 리턴을 신뢰하지 않고 URL 이 실제로 바뀔 때까지
+    직접 기다린다. timeout 안에 안 바뀌면 마지막 상태(대개 여전히 news.google.com)
+    그대로 반환 — 호출부에서 unresolved 로 처리된다.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        current = driver.current_url
+        if "news.google.com" not in urlparse(current).netloc:
+            return current
+        time.sleep(poll_interval)
+    return driver.current_url
+
+
 def _simulate_reading(driver) -> None:
     """사람이 결과 페이지를 훑어보는 것처럼 스크롤 + 짧은 대기를 흉내낸다."""
     try:
@@ -250,6 +268,13 @@ class UCGoogleNewsAdapter:
 
             opts = uc.ChromeOptions()
             opts.binary_location = chrome_binary
+            # DOMContentLoaded 시점에 driver.get() 이 바로 리턴 — 이미지/광고iframe 같은
+            # 하위 리소스 로드 완료를 안 기다린다. 검색 결과 페이지는 서버렌더링 HTML이라
+            # 링크 추출(XPath)엔 영향 없고, rss 모드에서 CBMi 리다이렉트 후 도착하는 실제
+            # 언론사 페이지의 광고/트래커 iframe 로딩을 기다리지 않게 돼 renderer 프로세스
+            # 급증을 줄인다(_resolve_cbmi 참고). 리다이렉트가 DOMContentLoaded 이후에
+            # 완료되는 경우를 대비해 _wait_for_cbmi_redirect() 로 current_url 을 폴링한다.
+            opts.page_load_strategy = "eager"
             opts.add_argument("--lang=ko-KR,ko")
             opts.add_argument("--no-sandbox")
             opts.add_argument("--disable-dev-shm-usage")
@@ -453,8 +478,10 @@ class UCGoogleNewsAdapter:
                 i = batch_start + offset + 1
                 try:
                     driver.get(url)
+                    final = _wait_for_cbmi_redirect(driver)
+                    # 리다이렉트 확인 후 자연스러운 간격(탐지 회피 목적) — 페이지의
+                    # 하위 리소스 로드를 기다리는 용도가 아니므로 리다이렉트 감지 뒤로 옮김.
                     _jitter_sleep(self._delay_sec)
-                    final = driver.current_url
                     if "google.com" not in urlparse(final).netloc:
                         resolved.append(final)
                     else:

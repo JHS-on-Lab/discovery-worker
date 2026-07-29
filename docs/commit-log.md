@@ -12,6 +12,12 @@
 
 ---
 
+## 7b995a7 — 2026-07-29
+fix: rss 모드 CBMi URL 해석을 배치로 나눠 Chrome 을 주기적으로 재시작
+
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## 2a6f1bc — 2026-07-29
 fix: 더미 키워드 대신 실제 뉴스 키워드 여러 개로 renderer 급증 재현 시도
 
