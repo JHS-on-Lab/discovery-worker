@@ -12,6 +12,12 @@
 
 ---
 
+## c9d710d — 2026-07-29
+perf: rss 폴백 시 광고/트래커 도메인을 host-resolver-rules 로 차단
+
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## b9b70d3 — 2026-07-29
 refactor: 전체 코드베이스 품질 리뷰(reuse/simplification/efficiency/altitude) 적용
 
