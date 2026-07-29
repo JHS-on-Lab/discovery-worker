@@ -12,6 +12,14 @@
 
 ---
 
+## e8811da — 2026-07-28
+feat: t_keyword.source_options_json 의 region 오버라이드를 google_news 어댑터에 연결
+
+- app/adapters/google_news.py
+- app/repository/keyword_repo.py
+- app/scheduling/dispatcher.py
+- docs/commit-log.md
+
 ## 8a48e55 — 2026-07-28
 fix: .gitignore 의 chrome_profile/ 패턴이 실제 기본 경로와 안 맞던 문제 수정
 

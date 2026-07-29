@@ -9,6 +9,7 @@ ENV/
 
 # Output
 output/
+scripts/*.png
 
 # Chrome 영구 프로필 (google_news/baidu_news 어댑터 — 쿠키/세션 데이터, 커밋 대상 아님)
 # 실제 기본 경로는 chrome_profile_google/, chrome_profile_baidu/ (config.py 의
