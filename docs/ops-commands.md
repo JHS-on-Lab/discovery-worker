@@ -9,7 +9,7 @@ python -m app --source naver_stock
 python -m app --source daum_news
 python -m app --source google_news
 python -m app --source baidu_news
-# duckduckgo_news 는 어댑터/CLI 옵션이 남아있지만 현재 운영상 비활성(실제 대상 키워드 없음)
+python -m app --source duckduckgo_news
 
 # 단일 프로세스로 전체 소스 처리 (소규모 운영)
 python -m app --source all
@@ -105,6 +105,11 @@ services:
   disc-baidu:
     image: discovery-worker:latest
     command: ["--source", "baidu_news"]
+    env_file: .env.dev
+
+  disc-duckduckgo:
+    image: discovery-worker:latest
+    command: ["--source", "duckduckgo_news"]
     env_file: .env.dev
 ```
 

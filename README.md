@@ -7,7 +7,7 @@
   발견한 URL을 `t_crawl_url`에 `status=discovered`로 삽입(`url_hash` UNIQUE로 중복 방지,
   `INSERT ... ON DUPLICATE KEY UPDATE`).
 - 지원 소스(어댑터 `app/adapters/`): `naver_news`, `naver_stock`, `daum_news`,
-  `google_news`, `baidu_news`, `duckduckgo_news`(운영상 비활성 — 아래 참고)
+  `google_news`, `baidu_news`, `duckduckgo_news`
 - 이후 단계(본문 추출/저장)는 별도 프로젝트인 `extraction-worker`가 담당한다. 이 저장소는
   Fetcher/Extractor/Sink 로직을 갖지 않는다(구글/바이두 어댑터 자체 브라우저 자동화 제외).
 - 상시 실행되는 워커 루프(`app/scheduling/dispatcher.py: run_discovery_loop`)로, `t_keyword`에서
@@ -42,6 +42,7 @@ python -m app --source naver_stock
 python -m app --source daum_news
 python -m app --source google_news
 python -m app --source baidu_news
+python -m app --source duckduckgo_news
 python -m app --source all
 python -m app --source naver_news --worker-id disc-naver-1
 ```
@@ -50,14 +51,11 @@ python -m app --source naver_news --worker-id disc-naver-1
 
 | 인자 | 설명 | 값 범위 | 기본값 |
 |---|---|---|---|
-| `--source` | 어떤 소스를 처리할지 (claim 쿼리의 `source_type` 필터) | `naver_news` \| `daum_news` \| `google_news` \| `baidu_news` \| `naver_stock` \| `duckduckgo_news`(운영상 비활성) \| `all` | 필수 (기본값 없음) |
+| `--source` | 어떤 소스를 처리할지 (claim 쿼리의 `source_type` 필터) | `naver_news` \| `daum_news` \| `google_news` \| `baidu_news` \| `naver_stock` \| `duckduckgo_news` \| `all` | 필수 (기본값 없음) |
 | `--worker-id` | claim 소유권(`claimed_by`)/로그 상관관계용 워커 식별자. 같은 소스의 여러 레플리카를 띄울 때는 서로 다른 값 사용 (예: `disc-naver-1`, `disc-naver-2`) | 문자열 | env `WORKER_ID` (기본 `worker-1`) |
 
 `--source all`은 한 프로세스에서 모든 소스를 처리(소규모 운영용)하며, 운영 환경에서는
 소스별로 별도 프로세스를 띄워 개별적으로 스케일하는 것을 권장한다.
-
-> **`duckduckgo_news`는 어댑터/CLI 옵션이 코드에 남아있지만 현재 실제 운영 대상
-> 키워드는 없다(비활성 상태로 유지).** `baidu_news`는 활성 대상이다.
 
 ### Docker
 

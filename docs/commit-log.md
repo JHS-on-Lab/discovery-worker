@@ -12,6 +12,13 @@
 
 ---
 
+## 4563bf1 — 2026-07-29
+docs: memory-oom-mitigation.md 를 이력 나열 대신 현재 상태 기준으로 재정리
+
+- docs/commit-log.md
+- docs/discovery-worker-design.md
+- docs/memory-oom-mitigation.md
+
 ## dba7b82 — 2026-07-29
 docs: stopLoading + 탭 즉시 닫기(8번) 문서화, 실측 기반 잔여 스파이크 원인 기록
 
