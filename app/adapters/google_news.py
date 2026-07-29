@@ -61,6 +61,9 @@ _GOOGLE_HOSTS = {
 _DEFAULT_MAX_PAGES = 5
 _DEFAULT_DELAY_SEC = 1.5
 
+# rss 모드 CBMi URL 해석 시 이 개수마다 Chrome 재시작 (renderer 프로세스 누적 방지)
+_CBMI_BATCH_SIZE = 20
+
 # 창 크기를 워커마다 고정값으로 통일하면 그 자체가 지문이 되므로 흔한 해상도 중 무작위 선택
 _WINDOW_SIZES = ("1366,768", "1440,900", "1536,864", "1600,900", "1920,1080")
 
@@ -425,39 +428,63 @@ class UCGoogleNewsAdapter:
     def _resolve_cbmi(self, cbmi_urls: list[str]) -> list[str]:
         """Chrome으로 CBMi URL 탐색 → 최종 언론사 URL 수집.
 
-        중간에 하나라도 hang/실패하면 driver 를 폐기하고 남은 URL 은 포기한다 —
-        이미 좀비가 된 driver 로 나머지 수십 건을 하나씩 타임아웃날 때까지
-        기다리는 건 시간 낭비이자, 다음 키워드까지 워커를 묶어두는 원인이 된다.
+        CBMi 링크는 news.google.com 안에서 클라이언트사이드 JS 로 최종 언론사
+        URL 을 알아내는 방식이라(순수 HTTP 는 302 하나만 타고 news.google.com
+        SPA 셸로 떨어짐 — httpx 로 직접 확인함, 2026-07-29) Chrome 이 필수다.
+
+        _CBMI_BATCH_SIZE 개마다 Chrome 을 껐다 다시 켠다. 하나의 세션으로 외부
+        뉴스 사이트(광고/트래커 iframe 많음)를 수십~백여 개 연달아 탐색하면
+        renderer 프로세스가 계속 쌓여 메모리가 급증하는 현상이 mem 로그에서
+        관찰됐다(2026-07-28, 최대 renderer 38개·rss_children_mb 4.9GB) — 정상
+        검색 페이지네이션(같은 google.com 안에 머묾)에서는 동일 구간 내내
+        renderer 가 안 늘어 대조군으로 확인됨. 배치 중간에 hang 이 나도 그
+        배치만 포기하고 다음 배치는 새 driver 로 이어서 진행해 데이터를
+        최대한 보존한다(상한을 둬서 버리지 않음).
         """
-        driver = self._ensure_driver()
-        resolved = []
+        resolved: list[str] = []
         total = len(cbmi_urls)
-        for i, url in enumerate(cbmi_urls, start=1):
-            try:
-                driver.get(url)
-                _jitter_sleep(self._delay_sec)
-                final = driver.current_url
-                if "google.com" not in urlparse(final).netloc:
-                    resolved.append(final)
-                else:
+
+        for batch_start in range(0, total, _CBMI_BATCH_SIZE):
+            batch = cbmi_urls[batch_start:batch_start + _CBMI_BATCH_SIZE]
+            driver = self._ensure_driver()
+            batch_hung = False
+
+            for offset, url in enumerate(batch):
+                i = batch_start + offset + 1
+                try:
+                    driver.get(url)
+                    _jitter_sleep(self._delay_sec)
+                    final = driver.current_url
+                    if "google.com" not in urlparse(final).netloc:
+                        resolved.append(final)
+                    else:
+                        _log.warning(
+                            f"cbmi unresolved: {url[:80]}",
+                            extra={"component": "adapter"},
+                        )
+                except Exception as exc:
                     _log.warning(
-                        f"cbmi unresolved: {url[:80]}",
+                        f"cbmi navigate hung at {i}/{total} — resetting driver, "
+                        f"이 배치의 남은 {len(batch) - offset - 1}건 포기하고 "
+                        f"다음 배치로 진행 (url={url[:60]} err={exc})",
                         extra={"component": "adapter"},
                     )
-            except Exception as exc:
-                _log.warning(
-                    f"cbmi navigate hung at {i}/{total} — resetting driver, "
-                    f"남은 {total - i}건 포기 (url={url[:60]} err={exc})",
-                    extra={"component": "adapter"},
-                )
-                self.close()
-                break
+                    self.close()
+                    batch_hung = True
+                    break
 
-            if i % 5 == 0 or i == total:
-                _log.debug(
-                    f"cbmi progress {i}/{total} — resolved {len(resolved)}",
-                    extra={"component": "adapter"},
-                )
+                if i % 5 == 0 or i == total:
+                    _log.debug(
+                        f"cbmi progress {i}/{total} — resolved {len(resolved)}",
+                        extra={"component": "adapter"},
+                    )
+
+            has_next_batch = batch_start + _CBMI_BATCH_SIZE < total
+            if not batch_hung and has_next_batch:
+                # renderer 누적 방지 — 다음 배치는 새 driver 로 시작.
+                # hang 으로 이미 close() 된 경우(batch_hung=True)는 중복 호출 안 함.
+                self.close()
+
         return resolved
 
     # ------------------------------------------------------------------

@@ -12,6 +12,12 @@
 
 ---
 
+## 2a6f1bc — 2026-07-29
+fix: 더미 키워드 대신 실제 뉴스 키워드 여러 개로 renderer 급증 재현 시도
+
+- docs/commit-log.md
+- scripts/check_chrome_isolation.py
+
 ## 761e5d6 — 2026-07-29
 fix: 검색 1건짜리 재현 테스트를 연속 페이지네이션으로 확장
 
