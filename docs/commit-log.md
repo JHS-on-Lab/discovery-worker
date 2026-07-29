@@ -12,6 +12,13 @@
 
 ---
 
+## 1278906 — 2026-07-29
+feat: Site Isolation/BackForwardCache 플래그 실제 적용 여부 진단 스크립트 추가
+
+- .gitignore
+- docs/commit-log.md
+- scripts/check_chrome_isolation.py
+
 ## e8811da — 2026-07-28
 feat: t_keyword.source_options_json 의 region 오버라이드를 google_news 어댑터에 연결
 

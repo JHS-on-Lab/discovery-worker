@@ -12,12 +12,20 @@ renderer 가 느는 건지(=플래그 자체가 이 케이스엔 효과가 없�
   cd discovery-worker
   .venv/bin/python scripts/check_chrome_isolation.py
 
+--worker-id 로 실제 운영 워커와 다른 Chrome 프로필을 쓰게 할 수 있다(기본값
+"chrome-check-diag"). config.py 가 .env.{APP_ENV} 를 override=True 로 로드해서
+.env 파일에 WORKER_ID 가 명시돼 있으면 쉘 환경변수(WORKER_ID=... 접두사)는
+무시되므로, 반드시 이 CLI 옵션으로 지정해야 실제 운영 워커의 프로필 락과
+충돌하지 않는다:
+  .venv/bin/python scripts/check_chrome_isolation.py --worker-id chrome-check-diag
+
 출력: 표준출력 텍스트 + chrome_policy_screenshot.png (chrome://policy 스크린샷,
 페이지가 shadow DOM 기반이라 텍스트 추출이 비어있을 수 있어 스크린샷을 보조로 남김)
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 import time
 from pathlib import Path
@@ -26,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import psutil
 
+from app import config
 from app.adapters.google_news import UCGoogleNewsAdapter
 
 
@@ -53,6 +62,20 @@ def _renderer_count(driver) -> int:
 
 
 def main() -> None:
+    p = argparse.ArgumentParser(description="Site Isolation/BackForwardCache 플래그 진단")
+    p.add_argument(
+        "--worker-id", default="chrome-check-diag",
+        help="이 진단용 Chrome 프로필 식별자 (기본: chrome-check-diag). "
+             "실제 운영 워커와 같은 값을 쓰면 프로필 락이 충돌한다.",
+    )
+    args = p.parse_args()
+
+    # __main__.py 와 동일한 패턴 — .env 의 WORKER_ID 를 코드에서 명시적으로 덮어써야
+    # 실제로 반영된다(config.py 가 .env.{APP_ENV} 를 override=True 로 로드하기 때문에
+    # 쉘 환경변수만으로는 안 먹힌다).
+    config.WORKER_ID = args.worker_id
+    print(f"[진단용 WORKER_ID = {config.WORKER_ID}] (실제 운영 워커와 별도 Chrome 프로필 사용)")
+
     adapter = UCGoogleNewsAdapter()
     try:
         driver = adapter._ensure_driver()
