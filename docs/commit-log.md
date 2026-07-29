@@ -12,6 +12,12 @@
 
 ---
 
+## d749746 — 2026-07-29
+perf: rss 모드 CBMi 해석을 배치 재시작 대신 URL별 새 탭 열고 즉시 닫기로 변경
+
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## d042617 — 2026-07-29
 docs: 광고/트래커 도메인 차단(6번) 및 재시도/폴백 상호작용 문서화
 
