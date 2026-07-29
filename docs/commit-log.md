@@ -12,6 +12,13 @@
 
 ---
 
+## d042617 — 2026-07-29
+docs: 광고/트래커 도메인 차단(6번) 및 재시도/폴백 상호작용 문서화
+
+- docs/commit-log.md
+- docs/discovery-worker-design.md
+- docs/memory-oom-mitigation.md
+
 ## c9d710d — 2026-07-29
 perf: rss 폴백 시 광고/트래커 도메인을 host-resolver-rules 로 차단
 

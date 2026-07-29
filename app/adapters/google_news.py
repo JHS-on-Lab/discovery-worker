@@ -62,9 +62,6 @@ _GOOGLE_HOSTS = {
 _DEFAULT_MAX_PAGES = 5
 _DEFAULT_DELAY_SEC = 1.5
 
-# rss 모드 CBMi URL 해석 시 이 개수마다 Chrome 재시작 (renderer 프로세스 누적 방지)
-_CBMI_BATCH_SIZE = 20
-
 # rss 폴백(_resolve_cbmi)이 실제 언론사 페이지를 방문할 때, 그 페이지의 광고/트래커
 # iframe(교차 출처)이 Chrome renderer 프로세스를 계속 늘려 메모리가 급증했다
 # (2026-07-28 mem 로그 실측). 이 도메인들을 호스트 리졸버 단에서 막으면 그 iframe
@@ -363,60 +360,53 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
         URL 을 알아내는 방식이라(순수 HTTP 는 302 하나만 타고 news.google.com
         SPA 셸로 떨어짐 — httpx 로 직접 확인함, 2026-07-29) Chrome 이 필수다.
 
-        _CBMI_BATCH_SIZE 개마다 Chrome 을 껐다 다시 켠다. 하나의 세션으로 외부
-        뉴스 사이트(광고/트래커 iframe 많음)를 수십~백여 개 연달아 탐색하면
-        renderer 프로세스가 계속 쌓여 메모리가 급증하는 현상이 mem 로그에서
-        관찰됐다(2026-07-28, 최대 renderer 38개·rss_children_mb 4.9GB) — 정상
-        검색 페이지네이션(같은 google.com 안에 머묾)에서는 동일 구간 내내
-        renderer 가 안 늘어 대조군으로 확인됨. 배치 중간에 hang 이 나도 그
-        배치만 포기하고 다음 배치는 새 driver 로 이어서 진행해 데이터를
-        최대한 보존한다(상한을 둬서 버리지 않음).
+        URL 마다 새 탭을 열어 탐색하고, 확인 즉시 그 탭을 닫는다. 같은 탭에서
+        driver.get() 으로 계속 이동만 하면 이전 페이지의 renderer(광고/트래커
+        iframe 포함)가 Chrome 자체 유휴 프로세스 유지 정책 때문에 곧바로
+        정리되지 않고 그대로 쌓이는 반면(2026-07-29 실측 — 같은 탭 재사용 시
+        renderer 11→24개로 계속 누적), 탭을 명시적으로 닫으면 매 방문마다
+        거의 베이스라인으로 리셋된다(같은 조건에서 방문마다 3~5개로 복귀).
+        그래서 배치 단위 브라우저 재시작 없이도 renderer 누적을 막을 수 있다.
+
+        탭을 열거나 닫는 도중 hang 이 나면(chromedriver 커맨드 채널 자체가
+        죽었을 가능성) 그 URL 만 포기하고 driver 전체를 폐기 — 다음 URL 은
+        _ensure_driver() 가 새로 띄운 드라이버로 이어서 진행한다.
         """
         resolved: list[str] = []
         total = len(cbmi_urls)
 
-        for batch_start in range(0, total, _CBMI_BATCH_SIZE):
-            batch = cbmi_urls[batch_start:batch_start + _CBMI_BATCH_SIZE]
+        for i, url in enumerate(cbmi_urls, start=1):
             driver = self._ensure_driver()
-            batch_hung = False
-
-            for offset, url in enumerate(batch):
-                i = batch_start + offset + 1
-                try:
-                    driver.get(url)
-                    final = _wait_for_cbmi_redirect(driver)
-                    # 리다이렉트 확인 후 자연스러운 간격(탐지 회피 목적) — 페이지의
-                    # 하위 리소스 로드를 기다리는 용도가 아니므로 리다이렉트 감지 뒤로 옮김.
-                    jitter_sleep(self._delay_sec)
-                    if "google.com" not in urlparse(final).netloc:
-                        resolved.append(final)
-                    else:
-                        _log.warning(
-                            f"cbmi unresolved: {url[:80]}",
-                            extra={"component": "adapter"},
-                        )
-                except Exception as exc:
+            try:
+                main_handle = driver.current_window_handle
+                driver.switch_to.new_window("tab")
+                driver.get(url)
+                final = _wait_for_cbmi_redirect(driver)
+                # 리다이렉트 확인 후 자연스러운 간격(탐지 회피 목적) — 페이지의
+                # 하위 리소스 로드를 기다리는 용도가 아니므로 리다이렉트 감지 뒤로 옮김.
+                jitter_sleep(self._delay_sec)
+                if "google.com" not in urlparse(final).netloc:
+                    resolved.append(final)
+                else:
                     _log.warning(
-                        f"cbmi navigate hung at {i}/{total} — resetting driver, "
-                        f"이 배치의 남은 {len(batch) - offset - 1}건 포기하고 "
-                        f"다음 배치로 진행 (url={url[:60]} err={exc})",
+                        f"cbmi unresolved: {url[:80]}",
                         extra={"component": "adapter"},
                     )
-                    self.close()
-                    batch_hung = True
-                    break
-
-                if i % 5 == 0 or i == total:
-                    _log.debug(
-                        f"cbmi progress {i}/{total} — resolved {len(resolved)}",
-                        extra={"component": "adapter"},
-                    )
-
-            has_next_batch = batch_start + _CBMI_BATCH_SIZE < total
-            if not batch_hung and has_next_batch:
-                # renderer 누적 방지 — 다음 배치는 새 driver 로 시작.
-                # hang 으로 이미 close() 된 경우(batch_hung=True)는 중복 호출 안 함.
+                driver.close()
+                driver.switch_to.window(main_handle)
+            except Exception as exc:
+                _log.warning(
+                    f"cbmi navigate hung at {i}/{total} — resetting driver, "
+                    f"이 URL 포기하고 다음 URL로 진행 (url={url[:60]} err={exc})",
+                    extra={"component": "adapter"},
+                )
                 self.close()
+
+            if i % 5 == 0 or i == total:
+                _log.debug(
+                    f"cbmi progress {i}/{total} — resolved {len(resolved)}",
+                    extra={"component": "adapter"},
+                )
 
         return resolved
 
