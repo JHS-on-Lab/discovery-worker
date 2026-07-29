@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, bindparam, text
 
 from app.domain_logic.url_normalizer import normalize, url_hash
 from app.repository.domain_repo import DomainRepo
@@ -29,7 +29,8 @@ KST = timezone(timedelta(hours=9))
 
 
 # ON DUPLICATE KEY UPDATE 는 url_hash 가 이미 있으면 아무것도 바꾸지 않는다.
-# 중복 URL 을 조용히 무시하기 위한 관용구다.
+# 중복 URL 을 조용히 무시하기 위한 관용구다 — 단, rowcount 는 이 판단에 안 쓴다
+# (아래 SELECT_EXISTING_HASHES_SQL 참고).
 _INSERT_SQL = text("""
     INSERT INTO t_crawl_url
         (url, url_hash, host, keyword_id, source_type, status,
@@ -42,6 +43,14 @@ _INSERT_SQL = text("""
     ON DUPLICATE KEY UPDATE
         updated_at = updated_at
 """)
+
+# INSERT ... ON DUPLICATE KEY UPDATE 의 rowcount 는 "값이 안 바뀐 duplicate" 케이스를
+# 드라이버/DB 엔진에 따라 다르게 보고한다 — dev MySQL 8.4 실측 결과 신규 insert와
+# no-op duplicate 둘 다 rowcount=1로 나와 구분이 안 됨(2026-07-29). 그래서 신규/중복
+# 판단은 rowcount 대신 INSERT 전에 기존 url_hash 를 직접 조회해서 한다.
+_SELECT_EXISTING_HASHES_SQL = text(
+    "SELECT url_hash FROM t_crawl_url WHERE url_hash IN :hashes"
+).bindparams(bindparam("hashes", expanding=True))
 
 
 class CrawlUrlRepo:
@@ -66,7 +75,8 @@ class CrawlUrlRepo:
         t_domain.excluded=1 인 host 는 애초에 insert 대상에서 제외한다.
         mode: 발견에 사용된 모드(google_news 전용: "search"|"rss"). 최초 발견 시점의
         값만 저장되고(ON DUPLICATE KEY UPDATE 대상 아님) 재발견 시 덮어쓰지 않는다.
-        반환: (inserted, skipped)
+        반환: (inserted, skipped) — INSERT 전에 기존 url_hash 를 조회해서 직접 구분한다
+        (rowcount 기반 판단은 DB 엔진에 따라 신뢰할 수 없어 안 씀. 위 SQL 상수 주석 참고).
         """
         if not raw_urls:
             return 0, 0
@@ -94,7 +104,21 @@ class CrawlUrlRepo:
             return 0, len(candidates)
 
         with self._engine.begin() as conn:
-            result = conn.execute(_INSERT_SQL, rows)
+            existing_before = set(conn.execute(
+                _SELECT_EXISTING_HASHES_SQL,
+                {"hashes": list({row["hash"] for row in rows})},
+            ).scalars())
+            conn.execute(_INSERT_SQL, rows)
 
-        inserted = result.rowcount
+        # 신규 = 이전에 없던 hash 이면서, 이 배치 안에서도 처음 등장하는 경우만
+        # (같은 배치 안에 동일 URL 이 중복으로 들어올 수 있음 — 그것도 skip 으로 센다).
+        seen: set[str] = set()
+        inserted = 0
+        for row in rows:
+            h = row["hash"]
+            if h in existing_before or h in seen:
+                continue
+            seen.add(h)
+            inserted += 1
+
         return inserted, len(candidates) - inserted

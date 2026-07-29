@@ -12,6 +12,15 @@
 
 ---
 
+## 0073cf8 — 2026-07-29
+feat: t_crawl_url.discovery_mode 로 google_news search/rss 발견 모드 영구 기록
+
+- app/adapters/google_news.py
+- app/repository/crawl_url_repo.py
+- app/scheduling/dispatcher.py
+- app/types.py
+- docs/commit-log.md
+
 ## 7d0b10e — 2026-07-29
 docs: 구글 RSS 폴백 봇 차단 감지 조건 문서화 + 메모리 완화 조치 4·5번 기록
 
