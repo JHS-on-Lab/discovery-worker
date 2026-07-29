@@ -12,6 +12,12 @@
 
 ---
 
+## 761e5d6 — 2026-07-29
+fix: 검색 1건짜리 재현 테스트를 연속 페이지네이션으로 확장
+
+- docs/commit-log.md
+- scripts/check_chrome_isolation.py
+
 ## 7f2efa4 — 2026-07-29
 fix: 진단 스크립트의 WORKER_ID 오버라이드가 실제로 안 먹히던 문제 수정
 

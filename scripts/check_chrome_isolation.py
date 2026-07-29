@@ -8,9 +8,10 @@ site-per-process 를 이미 적용했는데도 renderer 프로세스가 수십 �
 Isolation 을 강제로 덮어쓰고 있는지, ③ 아니면 플래그는 정상 적용됐는데도 여전히
 renderer 가 느는 건지(=플래그 자체가 이 케이스엔 효과가 없는 것)를 구분한다.
 
-검색 1건만으로는 재현이 안 될 수 있어(운영 서버 실측 결과), 3번 단계는
-_discover_search() 처럼 페이지네이션(연속 driver.get())을 흉내내 여러 페이지를
-연속으로 순회하며 renderer 수 변화를 기록한다.
+검색 1건, 더미 키워드(q=test) × 페이지네이션만으로는 재현이 안 될 수 있어(실측
+결과), 3번 단계는 dispatcher._run_one() 이 여러 키워드를 순차 처리하는 것과
+동일하게 실제 뉴스 키워드 여러 개 × 페이지네이션을 연속으로 돌리며 renderer
+수 변화를 기록한다.
 
 실행 (google_news 워커가 실제로 도는 서버에서 — Chrome 설치·Xvfb 필요):
   cd discovery-worker
@@ -33,6 +34,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -117,26 +119,30 @@ def main() -> None:
         driver.save_screenshot(str(screenshot_path))
         print(f"\n→ 스크린샷 저장: {screenshot_path}")
 
-        # --- 3. 실제 페이지네이션처럼 검색을 연속으로 여러 번 호출해 renderer 급증 재현 ---
-        # 검색 1건짜리 테스트로는 재현이 안 됐다(운영 서버 실측) — mem 로그에서 관찰된
-        # 급증은 한 키워드 안에서 driver.get() 이 연달아 여러 번 불리는 페이지네이션
-        # 구간(_discover_search 의 page=1..GOOGLE_MAX_PAGES)에서 나타나는 것으로 보여,
-        # 동일하게 여러 페이지를 연속 순회하며 매 페이지 후 renderer 수를 기록한다.
-        _section("3. 연속 페이지네이션 중 renderer 프로세스 수 변화 (실측 재현)")
+        # --- 3. 실제 키워드 여러 개 × 페이지네이션을 연속으로 돌려 renderer 급증 재현 ---
+        # q=test 같은 더미 키워드로 8페이지 순회해도 재현 안 됨(로컬 실측) — 결과가 거의
+        # 없는 키워드는 광고/서드파티 임베드가 애초에 안 붙어서 renderer 가 늘 소스가
+        # 없을 수 있다. 실제 급증이 관찰된 건 "Samsung Electronics", "Apple" 같은 진짜
+        # 뉴스 키워드였으므로, 동일하게 실제 키워드 여러 개를 페이지네이션 + 키워드
+        # 전환까지 포함해 연속으로 돌린다(dispatcher._run_one 이 여러 키워드를 순차
+        # 처리하는 것과 동일한 조건).
+        _section("3. 실제 키워드 연속 처리 중 renderer 프로세스 수 변화 (실측 재현)")
         before = _renderer_count(driver)
         print(f"검색 시작 전: renderer={before}")
 
+        keywords = ["Samsung Electronics", "Apple", "Tesla", "Nvidia", "OpenAI"]
+        pages_per_keyword = 3
         counts = [before]
-        n_pages = 8
-        for page in range(1, n_pages + 1):
-            start = (page - 1) * 10
-            driver.get(
-                f"https://www.google.com/search?q=test&tbm=nws&start={start}&tbs=qdr:d&hl=ko&gl=KR"
-            )
-            time.sleep(1.5)
-            count = _renderer_count(driver)
-            counts.append(count)
-            print(f"  page {page}/{n_pages} (start={start}) 이후: renderer={count}")
+        for kw in keywords:
+            for page in range(1, pages_per_keyword + 1):
+                start = (page - 1) * 10
+                driver.get(
+                    f"https://www.google.com/search?q={quote(kw)}&tbm=nws&start={start}&tbs=qdr:d&hl=ko&gl=KR"
+                )
+                time.sleep(1.5)
+                count = _renderer_count(driver)
+                counts.append(count)
+                print(f"  '{kw}' page {page}/{pages_per_keyword} (start={start}) 이후: renderer={count}")
 
         peak = max(counts)
         print(f"\n관찰된 renderer 최댓값: {peak} (시작 전 {before} → 최대 {peak})")
