@@ -12,6 +12,24 @@
 
 ---
 
+## b9b70d3 — 2026-07-29
+refactor: 전체 코드베이스 품질 리뷰(reuse/simplification/efficiency/altitude) 적용
+
+- app/adapters/__init__.py
+- app/adapters/_base.py
+- app/adapters/_chrome_behavior.py
+- app/adapters/baidu_news.py
+- app/adapters/google_news.py
+- app/config.py
+- app/repository/collection_log_repo.py
+- app/repository/crawl_url_repo.py
+- app/repository/db.py
+- app/scheduling/dispatcher.py
+- docs/commit-log.md
+- scripts/healthcheck.py
+- scripts/run_discovery.py
+- scripts/verify_schema.py
+
 ## 76efeec — 2026-07-29
 refactor: 오늘 세션 diff에 대한 품질 리뷰(reuse/simplification/efficiency/altitude) 적용
 

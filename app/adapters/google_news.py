@@ -65,6 +65,33 @@ _DEFAULT_DELAY_SEC = 1.5
 # rss 모드 CBMi URL 해석 시 이 개수마다 Chrome 재시작 (renderer 프로세스 누적 방지)
 _CBMI_BATCH_SIZE = 20
 
+# rss 폴백(_resolve_cbmi)이 실제 언론사 페이지를 방문할 때, 그 페이지의 광고/트래커
+# iframe(교차 출처)이 Chrome renderer 프로세스를 계속 늘려 메모리가 급증했다
+# (2026-07-28 mem 로그 실측). 이 도메인들을 호스트 리졸버 단에서 막으면 그 iframe
+# 자체가 탐색을 못 해 renderer 가 안 생긴다 — 실측(2026-07-29, 뉴스 5건)으로
+# renderer RSS 합계 약 39% 감소 확인(사이트별 8~59% 편차). google.com 페이징
+# 중엔 이 도메인들을 애초에 안 써서 부작용 없음.
+_AD_TRACKER_DOMAINS = (
+    "doubleclick.net", "googlesyndication.com", "googletagmanager.com", "googletagservices.com",
+    "google-analytics.com", "adservice.google.com", "adnxs.com", "criteo.com", "taboola.com",
+    "outbrain.com", "amazon-adsystem.com", "connect.facebook.net", "scorecardresearch.com",
+    "moatads.com", "media.net", "pubmatic.com", "rubiconproject.com", "casalemedia.com",
+    "contextweb.com", "openx.net", "smartadserver.com", "adform.net", "bidswitch.net",
+    "rlcdn.com", "agkn.com", "mathtag.com", "adsrvr.org", "tapad.com", "krxd.net",
+    "demdex.net", "admixer.net", "adotmob.com", "yieldmo.com", "adsafeprotected.com",
+    "gumgum.com", "smilewanted.com", "adcolony.com", "innovid.com", "flashtalking.com",
+)
+
+
+def _host_resolver_rules(domains: tuple[str, ...]) -> str:
+    """도메인 목록을 --host-resolver-rules 인자값으로 변환 — 각 도메인과
+    서브도메인(*.domain)을 전부 0.0.0.0(블랙홀)으로 매핑한다."""
+    rules = []
+    for d in domains:
+        rules.append(f"MAP {d} 0.0.0.0")
+        rules.append(f"MAP *.{d} 0.0.0.0")
+    return ", ".join(rules)
+
 
 def _wait_for_cbmi_redirect(driver, timeout: float = 10.0, poll_interval: float = 0.3) -> str:
     """CBMi 리다이렉트가 news.google.com 을 벗어날 때까지 current_url 을 폴링한다.
@@ -166,6 +193,7 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
             #   - IsolateOrigins/site-per-process: 교차 출처 iframe(광고 등)마다 별도
             #     프로세스를 만드는 보안 격리 기능. DOM/렌더링 결과 자체는 안 바뀜.
             opts.add_argument("--disable-features=BackForwardCache,IsolateOrigins,site-per-process")
+            opts.add_argument(f"--host-resolver-rules={_host_resolver_rules(_AD_TRACKER_DOMAINS)}")
             opts.add_experimental_option("prefs", {
                 "profile.managed_default_content_settings.images": 2,
             })
