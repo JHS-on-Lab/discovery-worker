@@ -2,11 +2,15 @@
 Site Isolation / BackForwardCache 비활성화 플래그가 실제로 먹히는지 확인하는 진단 스크립트.
 
 mem 로그(app/memlog.py)에서 --disable-features=BackForwardCache,IsolateOrigins,
-site-per-process 를 이미 적용했는데도 renderer 프로세스가 검색 1건마다 수십 개로
-급증하는 패턴이 관찰됐다(docs/memory-oom-mitigation.md). 이 스크립트는 그 원인이
+site-per-process 를 이미 적용했는데도 renderer 프로세스가 수십 개로 급증하는
+패턴이 관찰됐다(docs/memory-oom-mitigation.md). 이 스크립트는 그 원인이
 ① 플래그가 실제 브라우저 프로세스에 안 실렸는지, ② 조직 Chrome 정책이 Site
 Isolation 을 강제로 덮어쓰고 있는지, ③ 아니면 플래그는 정상 적용됐는데도 여전히
 renderer 가 느는 건지(=플래그 자체가 이 케이스엔 효과가 없는 것)를 구분한다.
+
+검색 1건만으로는 재현이 안 될 수 있어(운영 서버 실측 결과), 3번 단계는
+_discover_search() 처럼 페이지네이션(연속 driver.get())을 흉내내 여러 페이지를
+연속으로 순회하며 renderer 수 변화를 기록한다.
 
 실행 (google_news 워커가 실제로 도는 서버에서 — Chrome 설치·Xvfb 필요):
   cd discovery-worker
@@ -113,20 +117,34 @@ def main() -> None:
         driver.save_screenshot(str(screenshot_path))
         print(f"\n→ 스크린샷 저장: {screenshot_path}")
 
-        # --- 3. 실제 검색 1건으로 renderer 급증 재현 ---
-        _section("3. 검색 1건 전후 renderer 프로세스 수 (실측 재현)")
+        # --- 3. 실제 페이지네이션처럼 검색을 연속으로 여러 번 호출해 renderer 급증 재현 ---
+        # 검색 1건짜리 테스트로는 재현이 안 됐다(운영 서버 실측) — mem 로그에서 관찰된
+        # 급증은 한 키워드 안에서 driver.get() 이 연달아 여러 번 불리는 페이지네이션
+        # 구간(_discover_search 의 page=1..GOOGLE_MAX_PAGES)에서 나타나는 것으로 보여,
+        # 동일하게 여러 페이지를 연속 순회하며 매 페이지 후 renderer 수를 기록한다.
+        _section("3. 연속 페이지네이션 중 renderer 프로세스 수 변화 (실측 재현)")
         before = _renderer_count(driver)
-        print(f"검색 전: renderer={before}")
+        print(f"검색 시작 전: renderer={before}")
 
-        driver.get("https://www.google.com/search?q=test&tbm=nws&tbs=qdr:d&hl=ko&gl=KR")
-        time.sleep(3)
-        after = _renderer_count(driver)
-        print(f"검색 1건 후: renderer={after}")
+        counts = [before]
+        n_pages = 8
+        for page in range(1, n_pages + 1):
+            start = (page - 1) * 10
+            driver.get(
+                f"https://www.google.com/search?q=test&tbm=nws&start={start}&tbs=qdr:d&hl=ko&gl=KR"
+            )
+            time.sleep(1.5)
+            count = _renderer_count(driver)
+            counts.append(count)
+            print(f"  page {page}/{n_pages} (start={start}) 이후: renderer={count}")
 
-        if disable_features_arg and after - before <= 2:
-            print("\n결론: 플래그 정상 적용 + renderer 도 안정적 — 이 서버에선 문제 재현 안 됨.")
+        peak = max(counts)
+        print(f"\n관찰된 renderer 최댓값: {peak} (시작 전 {before} → 최대 {peak})")
+
+        if disable_features_arg and peak - before <= 3:
+            print("\n결론: 플래그 정상 적용 + 연속 페이지 로드에도 renderer 안정적 — 이 서버에선 문제 재현 안 됨.")
         elif disable_features_arg:
-            print("\n결론: 플래그는 실제로 적용됐는데도 renderer 가 급증함 —")
+            print("\n결론: 플래그는 실제로 적용됐는데도 연속 페이지 로드 중 renderer 가 급증함 —")
             print("       플래그 자체가 이 Chrome 버전/이 케이스엔 효과가 없다는 뜻.")
         else:
             print("\n결론: 플래그가 애초에 브라우저 프로세스에 안 실림 — 배포/버전 문제부터 확인 필요.")

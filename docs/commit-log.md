@@ -12,6 +12,12 @@
 
 ---
 
+## 7f2efa4 — 2026-07-29
+fix: 진단 스크립트의 WORKER_ID 오버라이드가 실제로 안 먹히던 문제 수정
+
+- docs/commit-log.md
+- scripts/check_chrome_isolation.py
+
 ## 1278906 — 2026-07-29
 feat: Site Isolation/BackForwardCache 플래그 실제 적용 여부 진단 스크립트 추가
 
