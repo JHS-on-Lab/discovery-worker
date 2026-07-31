@@ -12,6 +12,12 @@
 
 ---
 
+## 0d90845 — 2026-07-31
+perf: rss 모드 쿼리에 when:1d 추가 — 서버 단계에서 최근 1일로 후보군 제한
+
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## 492800f — 2026-07-29
 docs: duckduckgo_news 재활성화 — "운영상 비활성" 표기 제거
 

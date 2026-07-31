@@ -364,6 +364,12 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
         from app.fetch._client import make_client
 
         params = {"q": f"{keyword} when:{_RSS_CUTOFF_DAYS}d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+        # source_options_json.region 오버라이드 — search 모드와 동일하게 hl/gl/ceid 등
+        # 기본값을 덮어쓴다. RSS 는 news.google.com 단일 도메인으로 로케일이 전부 쿼리
+        # 파라미터로 결정되므로(도메인 자체를 바꾸는 _region_host 는 search 전용이라
+        # 여기선 적용 대상이 아님), region 문자열에 hl/gl/ceid 를 직접 넣어야 실제로
+        # 반영된다(예: "news.google.com/?hl=vi&gl=vn&ceid=VN:vi" — 도메인 부분은 무시됨).
+        params.update(self._region_extra_params)
         with make_client() as client:
             resp = client.get(_RSS_URL, params=params)
             resp.raise_for_status()
