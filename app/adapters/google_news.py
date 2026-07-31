@@ -54,6 +54,16 @@ _log = logging.getLogger(__name__)
 
 _RSS_URL    = "https://news.google.com/rss/search"
 
+# rss 모드 기간 제한. search 모드의 tbs=qdr:d 와 동일하게 "최근 1일"로 맞춘다.
+# 쿼리에 when:{N}d 를 안 넣으면 구글이 관련도 기준으로 최대 ~100건을 추려 반환하는데,
+# 그 후보군에 최대 3~4일치 기사가 다 섞여 경쟁하다 보니 관련도가 낮은 실제 최근(1일
+# 이내) 기사가 top 100 에서 밀려날 수 있다(2026-07-31 실측 — when: 없이 요청하면
+# 최대 80시간 전 기사까지 섞여 들어옴, when:1d 를 넣으면 후보군 자체가 1일 이내로
+# 좁혀져 가장 오래된 항목이 7.7시간 전으로 확 줄어듦). when:{N}d 로 후보군 자체를
+# 좁혀 이 문제를 줄인다 — _parse_rss() 의 pubDate 사후 필터링은 pubDate 파싱 실패 시
+# fail-open 하는 안전장치로 그대로 남겨둔다(이중 방어, 서로 대체 관계 아님).
+_RSS_CUTOFF_DAYS = 1
+
 _GOOGLE_HOSTS = {
     "google.com", "www.google.com", "news.google.com",
     "googleapis.com", "gstatic.com", "google.co.kr",
@@ -353,12 +363,12 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
 
         from app.fetch._client import make_client
 
-        params = {"q": keyword, "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+        params = {"q": f"{keyword} when:{_RSS_CUTOFF_DAYS}d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
         with make_client() as client:
             resp = client.get(_RSS_URL, params=params)
             resp.raise_for_status()
 
-        cbmi_urls = _parse_rss(resp.content, cutoff_days=1)
+        cbmi_urls = _parse_rss(resp.content, cutoff_days=_RSS_CUTOFF_DAYS)
         _log.info(f"rss mode: {len(cbmi_urls)} cbmi urls, resolving via Chrome")
 
         urls = self._resolve_cbmi(cbmi_urls)

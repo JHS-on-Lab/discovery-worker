@@ -12,6 +12,14 @@
 
 ---
 
+## 492800f — 2026-07-29
+docs: duckduckgo_news 재활성화 — "운영상 비활성" 표기 제거
+
+- README.md
+- docs/commit-log.md
+- docs/discovery-worker-design.md
+- docs/ops-commands.md
+
 ## 4563bf1 — 2026-07-29
 docs: memory-oom-mitigation.md 를 이력 나열 대신 현재 상태 기준으로 재정리
 
