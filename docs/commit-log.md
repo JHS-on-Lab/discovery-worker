@@ -12,6 +12,12 @@
 
 ---
 
+## 050c42a — 2026-07-31
+perf: 봇 차단 감지에 reCAPTCHA iframe 구조 체크 추가 (언어 무관 신호 보강)
+
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## cc449ce — 2026-07-31
 fix: rss 폴백 모드가 t_keyword.source_options_json 의 region 오버라이드를 무시하던 문제 수정
 

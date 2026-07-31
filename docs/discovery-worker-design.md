@@ -323,13 +323,49 @@ INTERVAL :interval_seconds SECOND`로 재스케줄하는 데 쓰인다 — 모�
 **RSS 폴백이 자동으로 발동하는 조건**(설정으로 처음부터 `rss`를 강제하는 경우 제외): `search` 모드에서 결과가 0건일 때, 그게 진짜 봇 차단인지 단순히 결과가 소진된 정상 상황인지를 구분해야 한다(`tbs=qdr:d` 최근 1일 필터상 페이지 깊이가 늘수록 결과가 정상적으로 0건이 되는 경우가 흔함). 아래 신호 중 하나라도 있어야 "진짜 차단"으로 판정한다(`_is_bot_block_page()`):
 
 - `driver.current_url`에 `/sorry/`가 포함
-- `driver.page_source`에 다음 문구 중 하나 포함: `unusual traffic`, `비정상적인 트래픽`, `g-recaptcha`, `detected unusual traffic from your computer network`
+- reCAPTCHA iframe 존재(`iframe[src*='recaptcha']`) — 클래스명/URL 패턴이라 언어 무관하게 유효
+- `driver.page_source`에 다음 문구 중 하나 포함: `unusual traffic`, `비정상적인 트래픽`, `g-recaptcha`, `detected unusual traffic from your computer network` — 이 문구들은 hl=en/ko 로케일에서만 유효하다(§8.7 리전 오버라이드로 다른 언어를 쓰면 못 잡을 수 있음, 위 reCAPTCHA iframe 체크가 언어 무관 보조 신호)
 
 차단으로 판정되면 `_search_blocked_until = now + GOOGLE_BLOCK_COOLDOWN_SEC`(기본 3600초)를 세팅하고 `BotBlockedError`를 던진다. **이 상태는 어댑터 인스턴스 하나에 저장되고, 그 인스턴스는 워커 프로세스 수명 동안 모든 키워드가 공유한다** — 즉 키워드 하나가 차단당하면 그 순간부터 쿨다운이 끝날 때까지 이 워커가 처리하는 **모든** 키워드가 `rss` 모드로 넘어간다. 쿨다운이 지나면 다음 `discover()` 호출에서 자동으로 `search` 모드 복귀를 시도한다.
 
 **키워드별 403/봇차단 재시도(`dispatcher.py`, 5회·30분 간격)와의 상호작용**: 이 둘은 서로 다른 걸 겨냥한 게 아니라 저장 범위가 다르다 — 어댑터의 `_search_blocked_until`은 이 프로세스 메모리에만 있고(로컬 최적화, "나는 당분간 계속 막힐 테니 rss로"), 키워드별 재시도는 DB에 영구 기록된다(워커 간 공유, "이 키워드는 어느 워커가 붙어도 당분간 쉬자"). 실제로는 재시도 간격(30분)이 쿨다운(1시간)보다 짧아서, 차단당한 키워드가 자기 재시도 차례가 와도 그때까지 워커는 여전히 `rss` 모드라 — 다시 `search`를 시도하는 게 아니라 `rss`로 조용히 처리된다(`_discover_rss()`는 차단 감지 자체가 없음). 그래서 이 키워드의 재시도 카운터는 쿨다운이 완전히 끝난 뒤 `search`가 재개되고 그 키워드가 실제로 다시 차단당해야만 올라간다 — 워커가 여러 개(`disc-google-1`, `disc-google-2` 등) 떠 있는 배포에선 재시도가 어느 워커에 걸리느냐에 따라 결과가 달라질 수 있다.
 
 **운영상 주의**: `rss` 모드는 캡차 회피 수단이지만 그 자체로 메모리 리스크가 있다 — CBMi 해석은 구글 도메인이 아니라 광고/트래커가 많은 외부 언론사 사이트를 연달아 여러 개 열기 때문에, 정상 `search` 페이지네이션(구글 도메인 안에 계속 머묾)과 달리 Chrome renderer 프로세스가 급증할 수 있다. 완화 조치(eager 로드, 광고 도메인 차단, URL별 탭 즉시 닫기 등)는 `docs/memory-oom-mitigation.md` 참고.
+
+### 8.7 구글 리전 오버라이드 (`t_keyword.source_options_json`)
+
+키워드별로 구글 검색/RSS 요청의 언어·국가를 바꾸고 싶을 때 `t_keyword.source_options_json`에
+`{"region": "..."}` 형태로 저장한다. `region` 값은 `도메인/?hl=언어코드&gl=국가코드&ceid=국가코드:언어코드`
+형식의 문자열이다 — `apply_source_options()`가 dispatcher를 통해 키워드 처리 직전에
+어댑터에 주입하고(`_parse_region()`), `search`/`rss` 두 모드 모두에 반영된다(2026-07-31,
+`_discover_rss()`가 이 값을 무시하던 버그 수정됨).
+
+**주의할 점**:
+- 도메인만 바꾸는 건 의미가 없다 — `hl`/`gl`(및 rss의 `ceid`)을 쿼리스트링에 직접
+  명시해야 실제로 언어/지역이 바뀐다. `rss` 모드는 news.google.com 단일 도메인으로
+  서빙되고 로케일이 전부 쿼리 파라미터로 결정되므로 도메인 부분 자체는 무시된다.
+- 도메인은 검증된 패턴(`google.com` 고정)을 따르는 게 안전하다 — `google.co.jp` 같은
+  ccTLD를 실제로 검증해본 적은 없다.
+- 값을 비워두면(대부분의 키워드) 기본값(`hl=ko`, `gl=KR`, `ceid=KR:ko`, 도메인
+  `www.google.com`)으로 리셋된다 — 같은 어댑터 인스턴스가 여러 키워드를 연속 처리하므로
+  리셋을 안 하면 이전 키워드의 리전이 다음 키워드로 새어 들어간다.
+- crawler-admin의 키워드 등록/수정 폼에서 `GOOGLE_NEWS` 선택 시 "리전 오버라이드"
+  필드로 편집 가능(`{"region": ...}` 껍데기 없이 안쪽 문자열만 입력).
+
+**예시** (`source_options_json` 컬럼에 저장되는 값 기준):
+
+| 국가/언어 | 값 |
+|---|---|
+| 한국(기본값, 오버라이드 불필요) | `NULL` |
+| 미국(영어) | `{"region": "google.com/?hl=en&gl=us&ceid=US:en"}` |
+| 베트남(베트남어) — 실제 검증됨 | `{"region": "google.com/?hl=vi&gl=vn&ceid=VN:vi"}` |
+| 일본(일본어) | `{"region": "google.com/?hl=ja&gl=jp&ceid=JP:ja"}` |
+| 사우디아라비아(아랍어) | `{"region": "google.com/?hl=ar&gl=sa&ceid=SA:ar"}` |
+| 영국(영어, 미국과 다른 국가) | `{"region": "google.com/?hl=en&gl=gb&ceid=GB:en"}` |
+| 프랑스(프랑스어) | `{"region": "google.com/?hl=fr&gl=fr&ceid=FR:fr"}` |
+
+패턴: `hl`=언어 코드(소문자), `gl`=국가 코드(소문자), `ceid`=국가코드(대문자):언어코드(소문자).
+새 리전을 추가하는 데 소스코드 수정은 필요 없다 — 위 표처럼 값만 채워 넣으면 된다.
 
 ---
 
