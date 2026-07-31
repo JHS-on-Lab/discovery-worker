@@ -1,0 +1,114 @@
+# 어댑터 카탈로그 — 새 어댑터 개발 참고용
+
+기존 6개 어댑터(`app/adapters/`)가 어떤 방식으로 동작하는지 정리한 것. 새 소스를
+추가할 때 어떤 패턴을 따를지 결정하는 데 참고한다.
+
+## 1. 한눈에 비교
+
+| 어댑터 | source_type | 수집 방식 | 베이스 클래스 | 커서 | 기간 필터 | 봇 차단 감지 |
+|---|---|---|---|---|---|---|
+| `naver_news.py` | `NAVER_NEWS` | 정적 HTTP (httpx) | `PaginatedAdapter` | `start` 오프셋 | `pd`(1주/1개월/오늘/1일) | 결과 0건 + "결과 없음" 마커 부재 |
+| `naver_stock.py` | `NAVER_STOCK` | 정적 HTTP | `PaginatedAdapter` | 페이지 번호 | 없음 | 없음(결과 0건이면 그냥 종료) |
+| `daum_news.py` | `DAUM_NEWS` | 정적 HTTP + 리다이렉트 해석 | `PaginatedAdapter` | 페이지 번호 | `period`(일/주/개월) | 결과 0건 + "결과 없음" 마커 부재 |
+| `google_news.py` | `GOOGLE_NEWS` | Chrome(undetected-chromedriver), search/rss 이중 모드 | `ChromeLifecycleMixin` | 페이지 번호(search) / 없음(rss, 1회성) | `tbs=qdr:d`(search, 하드코딩) / `when:1d`+사후 필터(rss) | `/sorry/` URL, reCAPTCHA iframe, 텍스트 마커(en/ko) |
+| `baidu_news.py` | `BAIDU_NEWS` | Chrome(undetected-chromedriver) | `ChromeLifecycleMixin` | `pn` 오프셋 | 없음(미발견) | `wappass.baidu.com` 리다이렉트, 페이지 타이틀 마커 |
+| `duckduckgo_news.py` | `DUCKDUCKGO_NEWS` | 정적 HTTP(내부 JSON API) | `PaginatedAdapter` | `페이지:오프셋:vqd` 복합 문자열 | `df`(일/주/개월) | vqd 토큰 부재, JSON 파싱 실패 |
+
+## 2. 수집 방식 두 갈래
+
+### 2.1 정적 HTTP (naver_news, naver_stock, daum_news, duckduckgo_news)
+
+- `app/fetch/_client.py`의 `make_client()`(httpx 기반)로 직접 요청.
+- `selectolax.parser.HTMLParser`로 파싱(daum/naver) 또는 JSON 파싱(duckduckgo).
+- 브라우저 불필요 — 가볍고 빠르고 메모리 걱정 없음.
+- **선택 기준**: 대상 사이트가 순수 HTTP 요청을 차단하지 않을 때만 가능. `baidu_news.py`의
+  주석에 남아있듯, 실측(httpx/curl)으로 100% 캡차 리다이렉트되는 걸 확인하면 이 방식은
+  포기해야 한다.
+
+### 2.2 Chrome 기반 (google_news, baidu_news)
+
+- `undetected_chromedriver` + `ChromeLifecycleMixin`(`_chrome_behavior.py`) 상속.
+- `_chrome_detect.py`(Chrome 바이너리 탐지, Xvfb 기동)와 `_profile_lock.py`(WORKER_ID별
+  영구 프로필 flock)를 공용으로 사용.
+- 행동 자연화: `jitter_sleep()`(고정 간격 대신 편차), `simulate_reading()`(스크롤 시뮬레이션),
+  랜덤 `WINDOW_SIZES`, 영구 프로필 디렉터리.
+- 메모리 절감 옵션(둘 다 적용): `--disable-features=BackForwardCache,IsolateOrigins,site-per-process`,
+  이미지 로드 차단. `page_load_strategy=eager`는 google만(baidu는 미적용).
+- **선택 기준**: JS 실행이 필요하거나(google의 CBMi 리다이렉트처럼 클라이언트사이드 JS로만
+  풀리는 경우) 순수 HTTP가 확실히 차단될 때만. Chrome은 메모리/속도 비용이 크므로
+  최후의 수단으로 취급 — `docs/memory-oom-mitigation.md`에 이 비용을 줄이려 쌓은 조치들
+  (URL별 탭 즉시 닫기, 광고 도메인 차단, stopLoading 등)이 정리돼 있다.
+
+## 3. 공용 인터페이스 (반드시 지켜야 하는 것)
+
+### `app/ports.py` — `SourceAdapter` Protocol
+
+```python
+source_type: str
+def discover(self, keyword: str, cursor: str | None) -> DiscoverResult: ...
+```
+
+모든 어댑터가 만족해야 하는 유일한 필수 계약. `cursor=None`이면 첫 페이지, 반환값의
+`next_cursor`를 다음 호출에 그대로 넘겨받는다.
+
+### `app/ports.py` — `SourceOptionsAware` Protocol (선택)
+
+`apply_source_options(options: dict | None) -> None`. `t_keyword.source_options_json`
+오버라이드가 필요한 어댑터만 구현(현재 `google_news`뿐). dispatcher가
+`isinstance(adapter, SourceOptionsAware)`로 지원 여부를 확인한다. 옵션이 없을 때
+반드시 내부 상태를 기본값으로 리셋해야 한다 — 어댑터 인스턴스가 여러 키워드를
+연속 처리하므로, 리셋 안 하면 이전 키워드 설정이 새어 들어간다.
+
+### `app/types.py`
+
+- `DiscoverResult(urls, next_cursor, has_more, mode=None)` — `mode`는 `DiscoverMode`
+  (search/rss, 현재 google 전용) 기본값 있어 다른 어댑터는 몰라도 됨.
+- `BotBlockedError` — dispatcher가 잡아서 키워드별 재시도 스케줄링(`dispatcher.py`,
+  5회·30분 간격)으로 처리. 결과가 0건이라고 무조건 던지면 안 되고, 실제 차단 신호가
+  있을 때만(§8.2, §8.3 참고 — 정상 소진과 진짜 차단을 구분 못 하면 오탐 쌓임).
+
+### `app/adapters/_base.py` — `PaginatedAdapter`
+
+`period`/`max_pages`/`delay_ms`를 갖는 정적 HTTP 계열 어댑터의 공통 베이스.
+`_exceeded(page_num)`(페이지 상한 체크), `_delay(is_first)`(첫 페이지 아니면 딜레이)를
+제공. Chrome 기반 어댑터(`google_news`/`baidu_news`)는 이걸 상속하지 않고
+`page_limit_exceeded()` 함수만 재사용한다(각자 `_ensure_driver()` 등 별도 라이프사이클이
+있어 생성자 시그니처가 다름).
+
+> **주의**: `PaginatedAdapter.__init__(period, max_pages, delay_ms)`는 위치 인자로
+> 호출하는 곳이 3곳(naver_news/daum_news/duckduckgo_news) 있다. 매개변수 순서를
+> 바꾸면 값이 조용히 뒤바뀌는 회귀가 생기니 바꾸려면 호출부 전체를 같이 고칠 것.
+
+### `app/adapters/__init__.py` — `make_adapter(source_type, max_pages=None)`
+
+새 어댑터는 여기에 분기 추가해야 실제로 dispatcher/스크립트에서 생성 가능해진다.
+
+## 4. 새 어댑터 만들 때 체크리스트
+
+1. **수집 방식 결정**: 대상 사이트가 순수 HTTP를 차단하는지 먼저 실측(httpx/curl)으로
+   확인 — 차단 확정이거나 JS 실행이 꼭 필요할 때만 Chrome行.
+2. **`SourceType`에 새 값 추가**(`app/types.py`).
+3. **베이스 클래스 선택**: 정적 HTTP면 `PaginatedAdapter` 상속, Chrome이면
+   `ChromeLifecycleMixin` 상속 + `_chrome_detect`/`_profile_lock` 재사용.
+4. **커서 형식 결정**: 오프셋 숫자만으로 충분한지, duckduckgo처럼 세션 토큰까지
+   포함해야 하는지(`"페이지:오프셋:토큰"` 같은 복합 문자열).
+5. **봇 차단 감지 기준 명확히**: "결과 0건"과 "진짜 차단"을 구분할 신호가 있는지
+   확인(사이트별 "검색 결과 없음" 마커 유무). 없으면 baidu처럼 차단으로 취급 안 하고
+   경고만 남기는 쪽을 고려(불필요한 백오프 낭비 방지).
+6. **기간 필터 파라미터 확인**: 사이트가 지원하면 최근 N일로 제한(비공식 파라미터라도
+   설정값으로 빼서 하드코딩 피할 것 — google의 `tbs=qdr:d`/`when:1d`처럼).
+7. **리다이렉트/중간 URL 처리 필요 여부**: daum의 `cp.news.search.daum.net`처럼 발견
+   단계에서 최종 목적지로 미리 풀어둬야 extraction-worker의 domain rule이 제대로
+   적용되는 경우가 있는지 확인.
+8. **`app/config.py`에 `<SOURCE>_MAX_PAGES` 등 설정값 추가**.
+9. **`app/adapters/__init__.py`의 `make_adapter()`에 분기 추가**.
+10. **`app/__main__.py`, `scripts/run_discovery.py`, `deploy/run.sh`의 `_SOURCES`/도움말
+    문자열에 추가**.
+11. **crawler-admin의 `SOURCE_TYPES` 목록**(`app/routes/keywords.py`, `app/routes/urls.py`,
+    `app/routes/logs.py`)에도 추가해야 관리 화면에서 다뤄진다.
+12. **`source_options_json` 오버라이드가 필요하면** `SourceOptionsAware` Protocol 구현 +
+    `apply_source_options()`에서 리셋 로직 필수.
+13. **실제 요청/파싱을 로컬에서 실측 검증** — 셀렉터가 실제 페이지 구조와 맞는지,
+    봇 차단이 실제로 어떻게 나타나는지(리다이렉트 URL, 응답 코드, 페이지 마커)
+    직접 확인 없이 추측만으로 만들면 나중에 운영 중 조용히 깨진다(baidu의 파싱
+    셀렉터가 아직 "미검증"으로 남아있는 게 그 예).

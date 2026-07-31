@@ -12,6 +12,12 @@
 
 ---
 
+## 285ed36 — 2026-07-31
+docs: 구글 리전 오버라이드(source_options_json) 예시와 사용법 문서화
+
+- docs/commit-log.md
+- docs/discovery-worker-design.md
+
 ## 050c42a — 2026-07-31
 perf: 봇 차단 감지에 reCAPTCHA iframe 구조 체크 추가 (언어 무관 신호 보강)
 

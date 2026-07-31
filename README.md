@@ -20,7 +20,8 @@ DB 스키마 마이그레이션은 이 저장소가 아니라 별도 저장소 `
 
 자세한 설계는 [docs/discovery-worker-design.md](docs/discovery-worker-design.md),
 운영 커맨드는 [docs/ops-commands.md](docs/ops-commands.md),
-로컬 셋업은 [docs/python-setup.md](docs/python-setup.md) 참고.
+로컬 셋업은 [docs/python-setup.md](docs/python-setup.md),
+새 어댑터 개발 참고는 [docs/adapter-catalog.md](docs/adapter-catalog.md) 참고.
 
 ## 설치
 
