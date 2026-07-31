@@ -12,6 +12,12 @@
 
 ---
 
+## cc449ce — 2026-07-31
+fix: rss 폴백 모드가 t_keyword.source_options_json 의 region 오버라이드를 무시하던 문제 수정
+
+- app/adapters/google_news.py
+- docs/commit-log.md
+
 ## 0d90845 — 2026-07-31
 perf: rss 모드 쿼리에 when:1d 추가 — 서버 단계에서 최근 1일로 후보군 제한
 

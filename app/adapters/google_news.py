@@ -460,10 +460,20 @@ def _is_bot_block_page(driver) -> bool:
     tbs=qdr:d(최근 1일) 필터 특성상 페이지 깊이가 늘수록 결과가 정상적으로
     소진돼 URL이 0개가 되는 경우가 흔하다. 이걸 전부 BotBlockedError로
     처리하면 오탐이 쌓여 불필요한 백오프·키워드 포기가 발생하므로,
-    실제 차단 신호(리다이렉트 /sorry/, 캡차 문구)가 있을 때만 True.
+    실제 차단 신호(리다이렉트 /sorry/, reCAPTCHA 요소, 캡차 문구)가 있을 때만 True.
+
+    _BLOCK_PAGE_MARKERS 의 문구 두 개(영어/한국어)는 그 로케일(hl=en/ko)에서만
+    유효하다 — source_options_json.region 으로 다른 언어(아랍어/베트남어 등)를
+    쓰면 문구가 달라 안 걸릴 수 있다. reCAPTCHA iframe 존재 여부는 클래스명/URL
+    패턴이라 언어와 무관하게 항상 유효한 신호라 별도로 확인한다(완벽한 커버리지를
+    보장하진 않음 — 실제 비-en/ko 차단 페이지 샘플로 검증한 적은 없다).
     """
+    from selenium.webdriver.common.by import By
+
     try:
         if "/sorry/" in (driver.current_url or ""):
+            return True
+        if driver.find_elements(By.CSS_SELECTOR, "iframe[src*='recaptcha']"):
             return True
         page_source = (driver.page_source or "").lower()
     except Exception:
