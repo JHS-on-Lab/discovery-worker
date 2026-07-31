@@ -12,6 +12,18 @@
 
 ---
 
+## 39695e8 — 2026-07-31
+feat: baomoi.com(Báo Mới, 베트남 뉴스 애그리게이터) 발견 어댑터 추가
+
+- app/__main__.py
+- app/adapters/__init__.py
+- app/adapters/baomoi_news.py
+- app/config.py
+- app/types.py
+- deploy/run.sh
+- docs/commit-log.md
+- scripts/run_discovery.py
+
 ## 9047a67 — 2026-07-31
 docs: 새 어댑터 개발 참고용 카탈로그 추가 (docs/adapter-catalog.md)
 
