@@ -12,6 +12,13 @@
 
 ---
 
+## 9047a67 — 2026-07-31
+docs: 새 어댑터 개발 참고용 카탈로그 추가 (docs/adapter-catalog.md)
+
+- README.md
+- docs/adapter-catalog.md
+- docs/commit-log.md
+
 ## 285ed36 — 2026-07-31
 docs: 구글 리전 오버라이드(source_options_json) 예시와 사용법 문서화
 

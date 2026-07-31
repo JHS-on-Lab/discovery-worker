@@ -29,4 +29,7 @@ def make_adapter(source_type: str, max_pages: int | None = None) -> SourceAdapte
     if pt == "DUCKDUCKGO_NEWS":
         from app.adapters.duckduckgo_news import DuckDuckGoNewsAdapter
         return DuckDuckGoNewsAdapter(**kwargs)
+    if pt == "BAOMOI_NEWS":
+        from app.adapters.baomoi_news import BaomoiNewsAdapter
+        return BaomoiNewsAdapter(**kwargs)
     raise ValueError(f"알 수 없는 source_type: {source_type}")
