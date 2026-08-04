@@ -118,6 +118,8 @@ python -m app --source naver_news --worker-id disc-naver-1
 | `GOOGLE_PAGE_LOAD_TIMEOUT_SEC` | 구글 헤드리스 페이지 로드 타임아웃 | 정수(s), 기본 `30` |
 | `BAIDU_CHROME_PROFILE_DIR` | 바이두 어댑터용 영속 Chrome 프로필 경로 | 경로, 기본 `./chrome_profile_baidu` |
 | `BAIDU_PAGE_LOAD_TIMEOUT_SEC` | 바이두 헤드리스 페이지 로드 타임아웃 | 정수(s), 기본 `30` |
+| `TINHTE_CHROME_PROFILE_DIR` | 띤뗴(Tinh tế) 어댑터용 영속 Chrome 프로필 경로 | 경로, 기본 `./chrome_profile_tinhte` |
+| `TINHTE_PAGE_LOAD_TIMEOUT_SEC` | 띤뗴 헤드리스 페이지 로드 타임아웃 | 정수(s), 기본 `30` |
 | `DAUM_NEWS_ALL` | 제휴 언론사만/전체 수집 여부 | bool, 기본 `true` |
 | `NAVER_MAX_PAGES` | 네이버 뉴스 키워드당 최대 페이지 수 | 정수, 기본 `10` |
 | `DAUM_MAX_PAGES` | 다음 최대 페이지 수 | 정수, 기본 `10` |
@@ -125,6 +127,8 @@ python -m app --source naver_news --worker-id disc-naver-1
 | `BAIDU_MAX_PAGES` | 바이두 최대 페이지 수 | 정수, 기본 `5` |
 | `NAVER_STOCK_MAX_PAGES` | 네이버 종목토론방 최대 페이지 수 | 정수, 기본 `5` |
 | `DUCKDUCKGO_MAX_PAGES` | DuckDuckGo(베트남어) 최대 페이지 수 | 정수, 기본 `5` |
+| `BAOMOI_MAX_PAGES` | 바오머이(Báo Mới, 베트남어) 최대 페이지 수 | 정수, 기본 `10` |
+| `TINHTE_MAX_PAGES` | 띤뗴(Tinh tế, 베트남어) 최대 페이지 수 | 정수, 기본 `5` |
 | `LOG_DIR` | 로그 디렉토리 | 경로, 기본 `./logs` |
 | `LOG_LEVEL` | 로그 레벨 | `INFO`\|`DEBUG`\|`WARNING` 등, 기본 `INFO` |
 | `LOG_ROTATION` | 로테이션 방식 | `daily`\|`size`, 기본 `daily` |
@@ -153,8 +157,3 @@ python -m app --source naver_news --worker-id disc-naver-1
 `SQLAlchemy`/`PyMySQL`(DB, `SKIP LOCKED` 미사용 — MariaDB 10.5 대상), `sshtunnel`/`paramiko`(SSH 터널),
 `httpx`(정적 페치), `selectolax`(HTML 파싱), `undetected-chromedriver`/`selenium`/`psutil`(구글·바이두
 브라우저 자동화 및 좀비 프로세스 정리), `python-dotenv`(설정).
-
-## masking_list.json
-
-전화번호/이메일 마스킹 규칙 정의 파일이 남아있으나, 현재 이 저장소 코드에서는 참조되지
-않는 레거시 파일이다(마스킹은 추출된 본문에 적용되므로 `extraction-worker`로 이관됨).

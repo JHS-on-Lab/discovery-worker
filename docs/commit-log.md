@@ -12,6 +12,22 @@
 
 ---
 
+## 68e1f00 — 2026-08-04
+feat: tinhte.vn(TINHTE_FORUM) 발견 어댑터 추가
+
+- .env
+- README.md
+- app/__main__.py
+- app/adapters/__init__.py
+- app/adapters/tinhte_forum.py
+- app/config.py
+- app/types.py
+- deploy/run.sh
+- docs/adapter-catalog.md
+- docs/commit-log.md
+- docs/discovery-worker-design.md
+- scripts/run_discovery.py
+
 ## 79064c5 — 2026-08-04
 chore: docker run --user 를 1001:1001 로 고정
 

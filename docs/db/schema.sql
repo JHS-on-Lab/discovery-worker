@@ -25,7 +25,7 @@ CREATE TABLE t_crawl_runtime (
 CREATE TABLE t_keyword (
   id               BIGINT        NOT NULL AUTO_INCREMENT,
   keyword          VARCHAR(255)  NOT NULL COMMENT '검색어 또는 식별자. NAVER_STOCK 은 종목코드 (예: 005930)',
-  source_type      VARCHAR(20)   NOT NULL COMMENT 'NAVER_NEWS | DAUM_NEWS | GOOGLE_NEWS | BAIDU_NEWS | NAVER_STOCK | DUCKDUCKGO_NEWS',
+  source_type      VARCHAR(20)   NOT NULL COMMENT 'NAVER_NEWS | DAUM_NEWS | GOOGLE_NEWS | BAIDU_NEWS | NAVER_STOCK | DUCKDUCKGO_NEWS | BAOMOI_NEWS | TINHTE_FORUM',
   display_name     VARCHAR(100)           COMMENT '사람이 읽기 쉬운 라벨. NAVER_STOCK: 종목명, GOOGLE: 다국어 키워드 설명 등',
   enabled          TINYINT(1)    NOT NULL DEFAULT 1   COMMENT 'false = 비활성화. disabled_reason 컬럼에 이유 기록',
   disabled_reason  VARCHAR(200)           COMMENT '비활성화 이유. 예: 수동 중지 | 상장폐지 | 연속 5회 403',
@@ -33,6 +33,7 @@ CREATE TABLE t_keyword (
   interval_seconds INT           NOT NULL DEFAULT 86400 COMMENT '수집 주기(초). 기본 86400 = 24시간',
   next_discover_at DATETIME               COMMENT '다음 수집 예정 시각(UTC). NULL 또는 과거이면 즉시 수집 대상',
   retry_pending    TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '다음 수집 시 full scan 필요 여부. 수집 중단(403 등) 시 1, 성공 완료 시 0',
+  source_options_json JSON               COMMENT 'source_type별 어댑터 전용 옵션(JSON). 예: GOOGLE_NEWS {"region": "VN"}. 대부분 source_type 은 NULL',
   PRIMARY KEY (id),
   UNIQUE KEY uq_keyword_source_type   (keyword, source_type),
   KEY        ix_keyword_next_discover_at (next_discover_at)
@@ -57,6 +58,7 @@ CREATE TABLE t_crawl_url (
   priority          INT           NOT NULL DEFAULT 0,
   extraction_method VARCHAR(50),
   collected_date    DATE,
+  discovery_mode    VARCHAR(20)   COMMENT '발견 시 사용된 모드. 현재는 GOOGLE_NEWS만 사용: search|rss. 나머지 source_type은 NULL',
   created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

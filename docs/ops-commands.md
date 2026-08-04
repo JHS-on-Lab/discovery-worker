@@ -10,6 +10,8 @@ python -m app --source daum_news
 python -m app --source google_news
 python -m app --source baidu_news
 python -m app --source duckduckgo_news
+python -m app --source baomoi_news
+python -m app --source tinhte_forum
 
 # 단일 프로세스로 전체 소스 처리 (소규모 운영)
 python -m app --source all
@@ -110,6 +112,16 @@ services:
   disc-duckduckgo:
     image: discovery-worker:latest
     command: ["--source", "duckduckgo_news"]
+    env_file: .env.dev
+
+  disc-baomoi:
+    image: discovery-worker:latest
+    command: ["--source", "baomoi_news"]
+    env_file: .env.dev
+
+  disc-tinhte:
+    image: discovery-worker:latest
+    command: ["--source", "tinhte_forum"]
     env_file: .env.dev
 ```
 

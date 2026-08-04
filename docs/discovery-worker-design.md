@@ -38,7 +38,7 @@
 ```mermaid
 flowchart LR
   KW[(keyword<br/>RDB)] --> DISP[Discovery dispatcher<br/>cron 트리거]
-  DISP --> DA[Discovery adapters<br/>NAVER_NEWS / NAVER_STOCK / DAUM_NEWS / GOOGLE_NEWS / BAIDU_NEWS / DUCKDUCKGO_NEWS]
+  DISP --> DA[Discovery adapters<br/>NAVER_NEWS / NAVER_STOCK / DAUM_NEWS / GOOGLE_NEWS / BAIDU_NEWS / DUCKDUCKGO_NEWS / BAOMOI_NEWS / TINHTE_FORUM]
   DA -->|INSERT ON CONFLICT DO NOTHING| AU[(crawl_url<br/>큐 + 상태)]
   AU --> EX[Extraction workers]
   EX --> SINK{{Sink 포트}}
@@ -557,7 +557,7 @@ Traceback (most recent call last):
 - **워커**: `WORKER_ID`(점유 식별)
 - **Fetcher 공통**: `DEFAULT_CRAWL_DELAY_MS`, `DEFAULT_RENDER_MODE`, `PROXY_PROVIDER`, `HTTP_VERIFY_SSL`
 - **소스별 옵션**: `GOOGLE_DISCOVERY_MODE`(search|rss), `DAUM_NEWS_ALL`
-- **소스별 최대 페이지 수**: `NAVER_MAX_PAGES`, `DAUM_MAX_PAGES`, `GOOGLE_MAX_PAGES`, `BAIDU_MAX_PAGES`, `NAVER_STOCK_MAX_PAGES`, `DUCKDUCKGO_MAX_PAGES`
+- **소스별 최대 페이지 수**: `NAVER_MAX_PAGES`, `DAUM_MAX_PAGES`, `GOOGLE_MAX_PAGES`, `BAIDU_MAX_PAGES`, `NAVER_STOCK_MAX_PAGES`, `DUCKDUCKGO_MAX_PAGES`, `BAOMOI_MAX_PAGES`, `TINHTE_MAX_PAGES`
 - **재시도/재스케줄**: `DISCOVERY_403_RESCHEDULE_SEC`, `BOT_DETECT_RETRY_SEC`
 - **로깅**: `LOG_DIR`, `LOG_LEVEL`, `LOG_ROTATION`(daily|size), `LOG_RETAIN_DAYS`, `LOG_BACKUP_COUNT`
 - **하트비트**: `HEARTBEAT_INTERVAL_SECONDS`
