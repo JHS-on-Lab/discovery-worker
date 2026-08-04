@@ -5,7 +5,7 @@
 #   ./deploy/run.sh <source> <worker_id>
 #
 # 인자:
-#   source     naver_news | daum_news | google_news | baidu_news | naver_stock | duckduckgo_news | baomoi_news | all
+#   source     naver_news | daum_news | google_news | baidu_news | naver_stock | duckduckgo_news | baomoi_news | tinhte_forum | all
 #   worker_id  컨테이너 고유 이름 (예: disc-naver-1)
 #
 # 예시:
@@ -23,7 +23,7 @@ if [[ -z "${SOURCE}" || -z "${WORKER_ID}" ]]; then
     echo ""
     echo "사용법: $0 <source> <worker_id>"
     echo ""
-    echo "  source   : naver_news | daum_news | google_news | baidu_news | naver_stock | duckduckgo_news | baomoi_news | all"
+    echo "  source   : naver_news | daum_news | google_news | baidu_news | naver_stock | duckduckgo_news | baomoi_news | tinhte_forum | all"
     echo "  worker_id: 고유 식별자 (예: disc-naver-1)"
     echo ""
     echo "예시:"

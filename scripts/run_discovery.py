@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app import config
 from app.adapters import make_adapter
 
-_SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock", "duckduckgo_news", "baomoi_news")
+_SOURCES = ("naver_news", "daum_news", "google_news", "baidu_news", "naver_stock", "duckduckgo_news", "baomoi_news", "tinhte_forum")
 KST = config.KST
 
 

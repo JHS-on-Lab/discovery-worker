@@ -1,6 +1,6 @@
 # 어댑터 카탈로그 — 새 어댑터 개발 참고용
 
-기존 6개 어댑터(`app/adapters/`)가 어떤 방식으로 동작하는지 정리한 것. 새 소스를
+기존 어댑터(`app/adapters/`)가 어떤 방식으로 동작하는지 정리한 것. 새 소스를
 추가할 때 어떤 패턴을 따를지 결정하는 데 참고한다.
 
 ## 1. 한눈에 비교
@@ -13,10 +13,12 @@
 | `google_news.py` | `GOOGLE_NEWS` | Chrome(undetected-chromedriver), search/rss 이중 모드 | `ChromeLifecycleMixin` | 페이지 번호(search) / 없음(rss, 1회성) | `tbs=qdr:d`(search, 하드코딩) / `when:1d`+사후 필터(rss) | `/sorry/` URL, reCAPTCHA iframe, 텍스트 마커(en/ko) |
 | `baidu_news.py` | `BAIDU_NEWS` | Chrome(undetected-chromedriver) | `ChromeLifecycleMixin` | `pn` 오프셋 | 없음(미발견) | `wappass.baidu.com` 리다이렉트, 페이지 타이틀 마커 |
 | `duckduckgo_news.py` | `DUCKDUCKGO_NEWS` | 정적 HTTP(내부 JSON API) | `PaginatedAdapter` | `페이지:오프셋:vqd` 복합 문자열 | `df`(일/주/개월) | vqd 토큰 부재, JSON 파싱 실패 |
+| `baomoi_news.py` | `BAOMOI_NEWS` | 정적 HTTP | `PaginatedAdapter` | 페이지 번호 | `<time datetime>` 파싱(1일) | 없음(미검증, "không tìm thấy" 부재 시 경고만) |
+| `tinhte_forum.py` | `TINHTE_FORUM` | Chrome(순정 selenium), 검색창 UI 직접 타이핑 | `ChromeLifecycleMixin` | 페이지 번호(`.gsc-cursor-page` 클릭) | 없음(정렬만 최신순, URL 패턴(`/thread/...`)으로 노이즈 제거) | 검색창 요소 못 찾으면만 감지(API 레벨 차단 신호 없음) |
 
 ## 2. 수집 방식 두 갈래
 
-### 2.1 정적 HTTP (naver_news, naver_stock, daum_news, duckduckgo_news)
+### 2.1 정적 HTTP (naver_news, naver_stock, daum_news, duckduckgo_news, baomoi_news)
 
 - `app/fetch/_client.py`의 `make_client()`(httpx 기반)로 직접 요청.
 - `selectolax.parser.HTMLParser`로 파싱(daum/naver) 또는 JSON 파싱(duckduckgo).
@@ -25,19 +27,33 @@
   주석에 남아있듯, 실측(httpx/curl)으로 100% 캡차 리다이렉트되는 걸 확인하면 이 방식은
   포기해야 한다.
 
-### 2.2 Chrome 기반 (google_news, baidu_news)
+### 2.2 Chrome 기반 (google_news, baidu_news, tinhte_forum)
 
-- `undetected_chromedriver` + `ChromeLifecycleMixin`(`_chrome_behavior.py`) 상속.
+- `undetected_chromedriver` + `ChromeLifecycleMixin`(`_chrome_behavior.py`) 상속 — google/baidu.
 - `_chrome_detect.py`(Chrome 바이너리 탐지, Xvfb 기동)와 `_profile_lock.py`(WORKER_ID별
   영구 프로필 flock)를 공용으로 사용.
 - 행동 자연화: `jitter_sleep()`(고정 간격 대신 편차), `simulate_reading()`(스크롤 시뮬레이션),
   랜덤 `WINDOW_SIZES`, 영구 프로필 디렉터리.
 - 메모리 절감 옵션(둘 다 적용): `--disable-features=BackForwardCache,IsolateOrigins,site-per-process`,
-  이미지 로드 차단. `page_load_strategy=eager`는 google만(baidu는 미적용).
+  이미지 로드 차단. `page_load_strategy=eager`는 google/tinhte만(baidu는 미적용).
 - **선택 기준**: JS 실행이 필요하거나(google의 CBMi 리다이렉트처럼 클라이언트사이드 JS로만
   풀리는 경우) 순수 HTTP가 확실히 차단될 때만. Chrome은 메모리/속도 비용이 크므로
   최후의 수단으로 취급 — `docs/memory-oom-mitigation.md`에 이 비용을 줄이려 쌓은 조치들
   (URL별 탭 즉시 닫기, 광고 도메인 차단, stopLoading 등)이 정리돼 있다.
+
+**tinhte_forum 는 다른 패턴** — API/페이지를 스크랩하는 게 아니라 실제 검색창에
+타이핑하고 결과를 DOM에서 읽는다(tinhte.vn 검색이 사이트에 임베드된 Google Custom
+Search Engine 위젯이라, 그 내부 API를 직접 흉내내려는 시도가 전부 차단되거나
+브라우저 정책과 충돌해 실패했다 — `tinhte_forum.py` 모듈 docstring에 시행착오 전부
+기록됨). 그래서:
+  - `undetected_chromedriver` 대신 순정 `selenium.webdriver.Chrome()` 사용 — 이 환경에서
+    undetected_chromedriver + 최신 Chrome 버전 조합이 불안정했고, 사람처럼 타이핑하는
+    방식이라 UC의 스텔스 패치가 결정적이지 않았다.
+  - 봇 차단 감지가 "검색창 요소 자체를 못 찾음" 하나뿐 — API를 직접 안 두드리니 API
+    레벨 차단(`403`, reCAPTCHA 등) 신호가 이 어댑터에는 나타나지 않는다.
+  - **새 소스가 "사이트 자체 검색이 아니라 제3자 위젯(구글 CSE 등)"인 경우**에 참고할
+    만한 선례 — API를 역공학하기 전에 먼저 실제 UI에 사람처럼 타이핑하는 방식이
+    되는지부터 검토해볼 가치가 있다.
 
 ## 3. 공용 인터페이스 (반드시 지켜야 하는 것)
 

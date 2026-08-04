@@ -12,6 +12,12 @@
 
 ---
 
+## 79064c5 — 2026-08-04
+chore: docker run --user 를 1001:1001 로 고정
+
+- deploy/run.sh
+- docs/commit-log.md
+
 ## bfc35fb — 2026-07-31
 chore: BAOMOI_MAX_PAGES 를 .env에 명시적으로 추가
 

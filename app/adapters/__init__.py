@@ -32,4 +32,7 @@ def make_adapter(source_type: str, max_pages: int | None = None) -> SourceAdapte
     if pt == "BAOMOI_NEWS":
         from app.adapters.baomoi_news import BaomoiNewsAdapter
         return BaomoiNewsAdapter(**kwargs)
+    if pt == "TINHTE_FORUM":
+        from app.adapters.tinhte_forum import TinhteForumAdapter
+        return TinhteForumAdapter(**kwargs)
     raise ValueError(f"알 수 없는 source_type: {source_type}")
