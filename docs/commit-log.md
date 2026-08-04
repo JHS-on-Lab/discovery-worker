@@ -12,6 +12,12 @@
 
 ---
 
+## bfc35fb — 2026-07-31
+chore: BAOMOI_MAX_PAGES 를 .env에 명시적으로 추가
+
+- .env
+- docs/commit-log.md
+
 ## 39695e8 — 2026-07-31
 feat: baomoi.com(Báo Mới, 베트남 뉴스 애그리게이터) 발견 어댑터 추가
 
