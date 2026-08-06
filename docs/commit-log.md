@@ -12,6 +12,14 @@
 
 ---
 
+## 60e2174 — 2026-08-06
+fix: build.sh/run.sh UID 처리를 동적 방식으로 되돌리고 run.sh --user 제거
+
+- Dockerfile
+- deploy/build.sh
+- deploy/run.sh
+- docs/commit-log.md
+
 ## b155a15 — 2026-08-06
 fix: build.sh 의 APP_UID/APP_GID 를 1001로 고정 (run.sh --user 값과 통일)
 

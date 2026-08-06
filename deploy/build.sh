@@ -41,14 +41,13 @@ echo "  프로젝트 루트: ${PROJECT_ROOT}"
 #   "${PROJECT_ROOT}"         : 빌드 컨텍스트 경로.
 #                               이 디렉토리 안의 파일들이 COPY 명령에서 사용된다.
 #                               Dockerfile 도 이 경로에서 찾는다.
-#   --build-arg APP_UID/APP_GID : 이미지 안 appuser 의 UID/GID를 빌드하는
-#                               사람(호스트 계정)의 UID/GID로 맞춘다. run.sh 는
-#                               --user 를 따로 지정하지 않고 이 계정을 그대로
-#                               상속해 실행하므로, 빌드와 실행을 같은 계정으로
-#                               하면(배포 계정 하나로 build→run 순서 실행) 항상
-#                               자동으로 맞는다.
+#   --build-arg APP_UID/APP_GID : 이미지 안 appuser 의 UID/GID. 이 서버의
+#                               discovery-worker 배포 계정 실제 값(1001)으로
+#                               고정한다. run.sh 는 --user 를 따로 지정하지
+#                               않고 이미지가 빌드 시점에 갖게 된 이 값을
+#                               그대로 상속해 실행한다.
 docker build \
-    --build-arg APP_UID="$(id -u)" --build-arg APP_GID="$(id -g)" \
+    --build-arg APP_UID=1001 --build-arg APP_GID=1001 \
     -t "${IMAGE_NAME}:${TAG}" \
     "${PROJECT_ROOT}"
 
