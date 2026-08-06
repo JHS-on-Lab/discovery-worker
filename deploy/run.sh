@@ -38,11 +38,12 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 APP_ENV="${APP_ENV:-dev}"
 ENV_FILE="${PROJECT_ROOT}/.env.${APP_ENV}"
 
-LOG_DIR="${HOME}/apps/data/discovery-worker/logs"
-OUTPUT_DIR="${HOME}/apps/data/discovery-worker/output"
-GOOGLE_CHROME_PROFILE_DIR="${HOME}/apps/data/discovery-worker/chrome_profile_google"
-BAIDU_CHROME_PROFILE_DIR="${HOME}/apps/data/discovery-worker/chrome_profile_baidu"
-TINHTE_CHROME_PROFILE_DIR="${HOME}/apps/data/discovery-worker/chrome_profile_tinhte"
+DATA_ROOT="/data001/crawler"
+LOG_DIR="${DATA_ROOT}/apps/data/discovery-worker/logs"
+OUTPUT_DIR="${DATA_ROOT}/apps/data/discovery-worker/output"
+GOOGLE_CHROME_PROFILE_DIR="${DATA_ROOT}/apps/data/discovery-worker/chrome_profile_google"
+BAIDU_CHROME_PROFILE_DIR="${DATA_ROOT}/apps/data/discovery-worker/chrome_profile_baidu"
+TINHTE_CHROME_PROFILE_DIR="${DATA_ROOT}/apps/data/discovery-worker/chrome_profile_tinhte"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
     echo "오류: 환경 설정 파일을 찾을 수 없습니다: ${ENV_FILE}"
