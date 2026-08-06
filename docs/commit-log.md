@@ -12,6 +12,36 @@
 
 ---
 
+## 72273b4 — 2026-08-06
+run.sh 데이터 경로를 HOME 대신 고정 경로(DATA_ROOT)로 변경
+
+- deploy/run.sh
+
+## 063c49d — 2026-08-06
+run.sh에서 컨테이너 메모리 제한 제거
+
+- deploy/run.sh
+
+## c38de67 — 2026-08-06
+Docker 이미지 타임존을 서울(KST)로 설정하고 build-arg로 호스트 UID/GID 전달
+
+- Dockerfile
+- deploy/build.sh
+
+## 83f47bd — 2026-08-06
+feat: Chrome 영구 프로필 디스크 사용량 정리 (봇 차단 우회 기능은 보존)
+
+- app/adapters/_chrome_behavior.py
+- app/adapters/_profile_cleanup.py
+- app/adapters/baidu_news.py
+- app/adapters/google_news.py
+- app/adapters/tinhte_forum.py
+- deploy/run.sh
+- docs/adapter-catalog.md
+- docs/commit-log.md
+- docs/ops-commands.md
+- scripts/clean_chrome_profiles.py
+
 ## c53675b — 2026-08-06
 refactor: Chrome 드라이버 초기화 및 어댑터 공용 로직 통합
 
