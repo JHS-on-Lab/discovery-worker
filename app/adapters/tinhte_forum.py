@@ -74,7 +74,9 @@ from selenium.webdriver.common.keys import Keys
 
 from app import config
 from app.adapters._base import page_limit_exceeded
-from app.adapters._chrome_behavior import ChromeLifecycleMixin, WINDOW_SIZES, jitter_sleep, simulate_reading
+from app.adapters._chrome_behavior import (
+    ChromeLifecycleMixin, PROFILE_DISK_USAGE_ARGS, WINDOW_SIZES, jitter_sleep, simulate_reading,
+)
 from app.adapters._chrome_detect import ensure_xvfb, require_chrome_binary
 from app.adapters._profile_lock import acquire_profile_dir
 from app.types import BotBlockedError, DiscoverResult, SourceType
@@ -158,6 +160,8 @@ class TinhteForumAdapter(ChromeLifecycleMixin):
             opts.add_argument("--disable-dev-shm-usage")
             opts.add_argument("--disable-gpu")
             opts.add_argument(f"--window-size={random.choice(WINDOW_SIZES)}")
+            for arg in PROFILE_DISK_USAGE_ARGS:
+                opts.add_argument(arg)
             if sys.platform == "win32":
                 opts.add_argument("--window-position=-32000,-32000")
 

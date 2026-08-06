@@ -78,6 +78,15 @@ python scripts/verify_schema.py --direct  # SSH 터널 없이 RDS에 직접 접�
 # DB 연결 상태 확인
 python scripts/healthcheck.py
 python scripts/healthcheck.py --direct
+
+# Chrome 영구 프로필의 캐시성 폴더 정리 (쿠키/로컬스토리지 등은 안 건드림)
+python scripts/clean_chrome_profiles.py
+```
+
+호스트 crontab에 등록해 정기 실행하면(예: 매일 새벽 4시) 컨테이너를 오래 띄워둬도
+프로필 디렉터리가 무한정 커지지 않는다:
+```
+0 4 * * * cd /path/to/discovery-worker && .venv/bin/python scripts/clean_chrome_profiles.py >> logs/profile-cleanup.log 2>&1
 ```
 
 ## Docker Compose 예시

@@ -33,7 +33,9 @@ from urllib.parse import urlencode, urlparse
 
 from app import config
 from app.adapters._base import page_limit_exceeded
-from app.adapters._chrome_behavior import ChromeLifecycleMixin, WINDOW_SIZES, jitter_sleep, simulate_reading
+from app.adapters._chrome_behavior import (
+    ChromeLifecycleMixin, PROFILE_DISK_USAGE_ARGS, WINDOW_SIZES, jitter_sleep, simulate_reading,
+)
 from app.adapters._chrome_detect import detect_chrome_major, ensure_xvfb, require_chrome_binary
 from app.adapters._profile_lock import acquire_profile_dir
 from app.types import BotBlockedError, DiscoverResult, SourceType
@@ -80,6 +82,8 @@ class BaiduNewsAdapter(ChromeLifecycleMixin):
             #   - IsolateOrigins/site-per-process: 교차 출처 iframe(광고 등)마다 별도
             #     프로세스를 만드는 보안 격리 기능. DOM/렌더링 결과 자체는 안 바뀜.
             opts.add_argument("--disable-features=BackForwardCache,IsolateOrigins,site-per-process")
+            for arg in PROFILE_DISK_USAGE_ARGS:
+                opts.add_argument(arg)
             opts.add_experimental_option("prefs", {
                 "profile.managed_default_content_settings.images": 2,
             })

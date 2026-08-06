@@ -16,6 +16,18 @@ from app.adapters._process_kill import kill_process_tree
 # 창 크기를 워커마다 고정값으로 통일하면 그 자체가 지문이 되므로 흔한 해상도 중 무작위 선택
 WINDOW_SIZES = ("1366,768", "1440,900", "1536,864", "1600,900", "1920,1080")
 
+# 컴포넌트 업데이터(인증서 폐기 목록, 최적화 가이드 모델 등)와 Safe Browsing DB
+# 자동 갱신을 끈다 — 스크래핑 봇 동작과 무관한 Chrome 자체의 전역 참조 데이터가
+# 영구 프로필 디렉터리에 계속 쌓이는 걸 막는다(사이트별 쿠키/로컬스토리지 등
+# "돌아오는 사용자" 신호에는 영향 없음 — 이 데이터들은 사이트 방문 이력이 아니라
+# Chrome 배포판 자체가 받는 공용 참조 데이터라서다). 그래도 이미 받아진 것과
+# 순수 디스크 캐시(Cache/Code Cache 등)는 계속 쌓이므로 _profile_cleanup.py 의
+# 허용 목록 기반 정리가 별도로 필요하다.
+PROFILE_DISK_USAGE_ARGS = (
+    "--disable-component-update",
+    "--safe-browsing-disable-auto-update",
+)
+
 
 def jitter_sleep(base_sec: float, spread: float = 0.4) -> None:
     """고정 간격 대신 자연스러운 편차를 준 대기. spread=0.4 → base의 ±40% 범위."""

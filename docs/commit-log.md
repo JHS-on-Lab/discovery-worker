@@ -12,6 +12,22 @@
 
 ---
 
+## c53675b — 2026-08-06
+refactor: Chrome 드라이버 초기화 및 어댑터 공용 로직 통합
+
+- app/adapters/_base.py
+- app/adapters/_chrome_behavior.py
+- app/adapters/_chrome_detect.py
+- app/adapters/_profile_lock.py
+- app/adapters/baidu_news.py
+- app/adapters/baomoi_news.py
+- app/adapters/daum_news.py
+- app/adapters/google_news.py
+- app/adapters/naver_news.py
+- app/adapters/tinhte_forum.py
+- docs/adapter-catalog.md
+- docs/commit-log.md
+
 ## 65d27d4 — 2026-08-06
 docs: 주석/설계문서에서 날짜·시행착오 서술 제거, 최초 버전처럼 정리
 

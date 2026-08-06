@@ -111,6 +111,16 @@ Chrome 기반 어댑터(`google_news`/`baidu_news`/`tinhte_forum`) 공용 베이
 `__del__()` 도 여기서 공용 구현. 서브클래스는 `super().__init__(max_pages, delay_sec)`
 호출 후 자기만의 필드(google_news 의 `_search_blocked_until` 등)를 추가하면 된다.
 
+같은 파일의 `PROFILE_DISK_USAGE_ARGS`(`--disable-component-update`,
+`--safe-browsing-disable-auto-update`)는 세 어댑터 모두 `opts.add_argument()` 로
+적용한다 — Chrome 컴포넌트 업데이터/Safe Browsing DB가 사이트 방문과 무관하게
+영구 프로필에 계속 다운로드해 쌓이는 걸 막는다(쿠키/로컬스토리지 등 "돌아오는
+사용자" 신호와는 무관 — 사이트별 상태가 아니라 Chrome 자체의 전역 참조 데이터라서).
+그래도 순수 브라우저 캐시(`Default/Cache` 등)는 계속 쌓이므로
+`app/adapters/_profile_cleanup.py`(허용 목록 기반, 쿠키/스토리지/IndexedDB는
+절대 안 지움) + `scripts/clean_chrome_profiles.py`(WORKER_ID별로 순회하며 flock
+으로 사용 중인 프로필은 건너뜀)로 별도 정리한다 — `docs/ops-commands.md` 참고.
+
 ### `app/adapters/__init__.py` — `make_adapter(source_type, max_pages=None)`
 
 새 어댑터는 여기에 분기 추가해야 실제로 dispatcher/스크립트에서 생성 가능해진다.

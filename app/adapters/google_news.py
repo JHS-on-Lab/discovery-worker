@@ -44,7 +44,9 @@ from xml.etree import ElementTree as ET
 
 from app import config
 from app.adapters._base import is_own_host, page_limit_exceeded
-from app.adapters._chrome_behavior import ChromeLifecycleMixin, WINDOW_SIZES, jitter_sleep, simulate_reading
+from app.adapters._chrome_behavior import (
+    ChromeLifecycleMixin, PROFILE_DISK_USAGE_ARGS, WINDOW_SIZES, jitter_sleep, simulate_reading,
+)
 from app.adapters._chrome_detect import detect_chrome_major, ensure_xvfb, require_chrome_binary
 from app.adapters._profile_lock import acquire_profile_dir
 from app.types import BotBlockedError, DiscoverMode, DiscoverResult, SourceType
@@ -202,6 +204,8 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
             #     프로세스를 만드는 보안 격리 기능. DOM/렌더링 결과 자체는 안 바뀜.
             opts.add_argument("--disable-features=BackForwardCache,IsolateOrigins,site-per-process")
             opts.add_argument(f"--host-resolver-rules={_host_resolver_rules(_AD_TRACKER_DOMAINS)}")
+            for arg in PROFILE_DISK_USAGE_ARGS:
+                opts.add_argument(arg)
             opts.add_experimental_option("prefs", {
                 "profile.managed_default_content_settings.images": 2,
             })
