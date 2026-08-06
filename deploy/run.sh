@@ -56,22 +56,6 @@ mkdir -p "${GOOGLE_CHROME_PROFILE_DIR}"
 mkdir -p "${BAIDU_CHROME_PROFILE_DIR}"
 mkdir -p "${TINHTE_CHROME_PROFILE_DIR}"
 
-# 소스별 메모리 티어: google_news/baidu_news/tinhte_forum 은 Chrome 을 루프 내내
-# 상주시켜(dispatcher.py: adapter 는 키워드마다 재사용) naver/daum 류보다 메모리
-# 사용량이 훨씬 크다. all 모드는 실행 중 어떤 source_type 키워드든 만날 수 있어
-# (adapters_by_source 캐시가 필요 시 이 어댑터들도 생성) chrome 티어로 잡는다.
-# app/memlog.py 가 남기는 {log_name}-mem.log 실측치가 쌓이면 MEM_LIMIT 환경변수로
-# 이 기본값을 덮어쓴다.
-case "${SOURCE}" in
-    google_news|baidu_news|tinhte_forum|all)
-        DEFAULT_MEM_LIMIT="1.5g"
-        ;;
-    *)
-        DEFAULT_MEM_LIMIT="512m"
-        ;;
-esac
-MEM_LIMIT="${MEM_LIMIT:-${DEFAULT_MEM_LIMIT}}"
-
 CONTAINER_NAME="${WORKER_ID}"
 IMAGE="discovery-worker:latest"
 
@@ -85,7 +69,6 @@ echo "  이미지   : ${IMAGE}"
 echo "  소스     : ${SOURCE}"
 echo "  환경설정 : ${ENV_FILE}"
 echo "  로그     : ${LOG_DIR}"
-echo "  메모리   : ${MEM_LIMIT} (swap 비활성)"
 echo ""
 
 docker run \
@@ -93,8 +76,6 @@ docker run \
     --name "${CONTAINER_NAME}" \
     --user "1001:1001" \
     --restart unless-stopped \
-    --memory "${MEM_LIMIT}" \
-    --memory-swap "${MEM_LIMIT}" \
     --env-file "${ENV_FILE}" \
     -e APP_ENV="${APP_ENV}" \
     -e WORKER_ID="${WORKER_ID}" \
