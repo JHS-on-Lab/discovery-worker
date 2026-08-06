@@ -42,6 +42,7 @@ echo "  프로젝트 루트: ${PROJECT_ROOT}"
 #                               이 디렉토리 안의 파일들이 COPY 명령에서 사용된다.
 #                               Dockerfile 도 이 경로에서 찾는다.
 docker build \
+    --build-arg APP_UID="$(id -u)" --build-arg APP_GID="$(id -g)" \
     -t "${IMAGE_NAME}:${TAG}" \
     "${PROJECT_ROOT}"
 
