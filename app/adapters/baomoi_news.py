@@ -1,20 +1,20 @@
 """
 Báo Mới(baomoi.com, 베트남 뉴스 애그리게이터) 발견 어댑터.
 
-전략 (2026-07-31 분석, docs/adapter-catalog.md 참고):
+전략 (docs/adapter-catalog.md 참고):
   baomoi.com/tim-kiem/{keyword}.epi 로 검색 결과 HTML을 스크랩한다.
-  - 순수 HTTP로 접근 가능(Chrome 불필요) — 실측 확인, 봇 차단 신호는 아직 미검증.
+  - 순수 HTTP로 접근 가능(Chrome 불필요). 봇 차단 신호는 아직 미검증.
   - 페이지네이션: 1페이지는 /tim-kiem/{keyword}.epi, 2페이지부터
     /tim-kiem/{keyword}/trang{N}.epi ("trang" = 페이지).
   - 결과는 .bm-card 컨테이너 단위 — 그 안의 <a href="...-c{id}.epi">가 기사 링크
     (태그/발행사 링크는 이 패턴이 아님), <time datetime="...+07:00">이 발행 시각(ISO
-    8601, 베트남 시간대). 실측상 최신순으로 이미 정렬돼 있음.
+    8601, 베트남 시간대). 최신순으로 이미 정렬돼 있다.
   - 빈 결과: .bm-card 0개 + "không tìm thấy"(결과 없음) 문구 포함 → 진짜 빈 결과.
 
-미검증 상태(개발 중 계속 확인 필요):
-  - 봇 차단 시 실제로 어떤 신호(리다이렉트/캡차/다른 페이지 구조)가 뜨는지 아직 못 봄.
-  - 페이지당 결과 수가 불규칙(11/11/7/7/10 실측) — has_more 판단은 정확한 개수
-    임계값이 아니라 "이 페이지에 결과가 있었는가"로 처리.
+미검증 상태(운영 중 계속 확인 필요):
+  - 봇 차단 시 실제로 어떤 신호(리다이렉트/캡차/다른 페이지 구조)가 뜨는지 아직 못 봤다.
+  - 페이지당 결과 수가 불규칙(관찰된 범위 7~11건) — has_more 판단은 정확한 개수
+    임계값이 아니라 "이 페이지에 결과가 있었는가"로 처리한다.
 """
 
 from __future__ import annotations
@@ -90,10 +90,10 @@ class BaomoiNewsAdapter(PaginatedAdapter):
 
 def _is_genuine_empty(html: str) -> bool:
     """.bm-card 가 0개일 때, 진짜 "검색 결과 없음"인지(vs 봇 차단/셀렉터 파손 의심)
-    구분한다. "không tìm thấy"(결과를 찾을 수 없습니다) 문구 포함 여부로 판단—
-    실측(2026-07-31, 무의미한 키워드)으로 확인된 신호. 봇 차단 시 실제로 어떤
-    페이지가 뜨는지는 아직 못 봐서(§미검증), 이 신호가 없다고 바로 BotBlockedError로
-    단정하지 않고 경고만 남긴다(baidu_news.py와 동일한 보수적 처리)."""
+    구분한다. "không tìm thấy"(결과를 찾을 수 없습니다) 문구 포함 여부로 판단한다.
+    봇 차단 시 실제로 어떤 페이지가 뜨는지는 아직 못 봐서(§미검증), 이 신호가
+    없다고 바로 BotBlockedError로 단정하지 않고 경고만 남긴다(baidu_news.py와
+    동일한 보수적 처리)."""
     return "không tìm thấy" in html.lower()
 
 

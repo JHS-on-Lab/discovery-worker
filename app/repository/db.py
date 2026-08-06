@@ -72,7 +72,7 @@ def direct_engine():
 
     RDS 와 같은 네트워크(VPC 등)에 있는 서버(예: dev-app-host)에서 실행할 때만
     의미가 있다 — scripts/healthcheck.py, scripts/verify_schema.py 의 --direct
-    옵션이 공유해서 쓴다(각자 DSN 을 따로 조립하던 걸 2026-07-29 정리)."""
+    옵션이 공유해서 쓴다."""
     dsn = _dsn(config.RDS_HOST, config.RDS_PORT)
     engine = create_engine(dsn, pool_pre_ping=True, connect_args={"connect_timeout": 5})
     try:

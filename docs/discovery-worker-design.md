@@ -91,7 +91,7 @@ class SourceAdapter(Protocol):
         """검색·목록 결과를 긁어 콘텐츠 URL 목록과 다음 cursor를 반환. 본문은 다루지 않음."""
 ```
 
-> `Fetcher`/`Extractor`/`Sink` 포트는 `extraction-worker`가 이어받아 정의한다(분리 전 이 문서에서 함께 설계되었던 흔적 — 41faf0b 리팩토링으로 이동). 발견 어댑터의 HTTP 클라이언트는 별도 포트 없이 `app/fetch/_client.py`를 직접 호출한다.
+> `Fetcher`/`Extractor`/`Sink` 포트는 `extraction-worker`에서 정의한다. 발견 어댑터의 HTTP 클라이언트는 별도 포트 없이 `app/fetch/_client.py`를 직접 호출한다.
 
 ### 4.2 실행 모델 — 소스별 독립 실행
 
@@ -208,7 +208,7 @@ INTERVAL :interval_seconds SECOND`로 재스케줄하는 데 쓰인다 — 모�
 86400(24시간)이라 지금은 사실상 "하루 1회"로 보이지만, DB 값만 바꾸면 코드 변경 없이
 키워드별 주기를 다르게 줄 수 있다.
 
-**`crawl_url`** — 시스템의 심장. 작업 큐 + 상태 기계 + 실패 보관소를 한 테이블로 통합했다. "실패 URL을 따로 보관"하는 요구는 별도 테이블이 아니라 `status` 값으로 흡수된다.
+**`crawl_url`** — 시스템의 심장. 작업 큐 + 상태 기계 + 실패 보관소 역할을 한 테이블이 모두 담당한다. "실패 URL을 따로 보관"하는 요구는 별도 테이블이 아니라 `status` 값으로 흡수된다.
 - `url_hash`에 **UNIQUE 제약** (중복 방지의 관문 — 6절 참고).
 - `status` enum: `discovered`, `extracting`, `stored`, `failed_transient`, `failed_permanent`, `dead`. (`stored`는 성공 종료. 나중에 Solr를 붙이면 의미상 "indexed"에 해당.)
 - `collected_date`: 발견된 날짜(대시보드/통계 집계용, `ix_crawl_url_collected_date` 인덱스).
@@ -293,7 +293,7 @@ INTERVAL :interval_seconds SECOND`로 재스케줄하는 데 쓰인다 — 모�
 | 네이버 | 1일·1주 | 가능 | 증분 중단(정렬 신뢰) | static 우선 | 검색 결과가 무한 스크롤 → 9.5 |
 | 다음 | 1일·1주 | 가능 | 증분 중단(정렬 신뢰) | static 우선 | SHOW_DNS=0 쿠키로 전체 언론사 수집. 제휴사(v.daum.net/v/) + 비제휴사(cp.news.search.daum.net/p/) 두 URL 패턴 처리 |
 | 구글 | 1일·1주(`tbs=qdr:d` 등) | **없음** | 집합 한정 + 날짜 판정 + 상한 | **headless** | 안티봇 가장 공격적, 보수적 속도 |
-| 바이두 | 없음(분석 결과 미발견) | 불가(초점순만) | 증분 중단 | **비headless**(undetected-chromedriver) | 9.4, 2026-07-10 구현 완료·실서버 캡차 검증 진행 중 |
+| 바이두 | 없음(분석 결과 미발견) | 불가(초점순만) | 증분 중단 | **비headless**(undetected-chromedriver) | 9.4, 실서버 캡차 검증 진행 중 |
 
 기간 필터 파라미터(예: 구글 `tbs=qdr:d`)는 비공식이라 바뀔 수 있으므로 **코드에 하드코딩하지 말고 설정값으로** 둔다. 필터가 깨지거나 무시되어도 폭주하지 않도록, 필터는 최적화 수단으로만 쓰고 페이지/스크롤 상한과 컷오프 판정을 항상 보험으로 깔아둔다.
 
@@ -318,7 +318,7 @@ INTERVAL :interval_seconds SECOND`로 재스케줄하는 데 쓰인다 — 모�
 `app/adapters/google_news.py`. `GOOGLE_DISCOVERY_MODE`에 따라 두 모드로 동작(README 참고):
 
 - **`search`(기본)**: `google.com/search?tbm=nws`를 undetected-chromedriver로 스크랩. 페이지네이션 가능.
-- **`rss`**: Google News RSS를 정적 HTTP로 가져온 뒤, RSS의 CBMi 리다이렉트 URL(최종 언론사 URL이 아니라 구글의 wrapper URL)을 Chrome으로 하나씩 열어 `current_url`을 읽어 실제 URL로 변환. CBMi는 순수 HTTP 리다이렉트가 아니라 news.google.com 안에서 클라이언트사이드 JS로 최종 URL을 알아내는 방식이라(httpx로 직접 확인, 2026-07-29) Chrome이 필수.
+- **`rss`**: Google News RSS를 정적 HTTP로 가져온 뒤, RSS의 CBMi 리다이렉트 URL(최종 언론사 URL이 아니라 구글의 wrapper URL)을 Chrome으로 하나씩 열어 `current_url`을 읽어 실제 URL로 변환. CBMi는 순수 HTTP 리다이렉트가 아니라 news.google.com 안에서 클라이언트사이드 JS로 최종 URL을 알아내는 방식이라 Chrome이 필수.
 
 **RSS 폴백이 자동으로 발동하는 조건**(설정으로 처음부터 `rss`를 강제하는 경우 제외): `search` 모드에서 결과가 0건일 때, 그게 진짜 봇 차단인지 단순히 결과가 소진된 정상 상황인지를 구분해야 한다(`tbs=qdr:d` 최근 1일 필터상 페이지 깊이가 늘수록 결과가 정상적으로 0건이 되는 경우가 흔함). 아래 신호 중 하나라도 있어야 "진짜 차단"으로 판정한다(`_is_bot_block_page()`):
 
@@ -337,8 +337,7 @@ INTERVAL :interval_seconds SECOND`로 재스케줄하는 데 쓰인다 — 모�
 키워드별로 구글 검색/RSS 요청의 언어·국가를 바꾸고 싶을 때 `t_keyword.source_options_json`에
 `{"region": "..."}` 형태로 저장한다. `region` 값은 `도메인/?hl=언어코드&gl=국가코드&ceid=국가코드:언어코드`
 형식의 문자열이다 — `apply_source_options()`가 dispatcher를 통해 키워드 처리 직전에
-어댑터에 주입하고(`_parse_region()`), `search`/`rss` 두 모드 모두에 반영된다(2026-07-31,
-`_discover_rss()`가 이 값을 무시하던 버그 수정됨).
+어댑터에 주입하고(`_parse_region()`), `search`/`rss` 두 모드 모두에 반영된다.
 
 **주의할 점**:
 - 도메인만 바꾸는 건 의미가 없다 — `hl`/`gl`(및 rss의 `ceid`)을 쿼리스트링에 직접
@@ -521,7 +520,7 @@ Traceback (most recent call last):
 
 각 워커는 주기적으로(예: `HEARTBEAT_INTERVAL_SECONDS`) 진행 카운터(처리/성공/실패 수, 마지막 항목)를 정보 로그에 남긴다. 워커가 "멈춘 듯" 보일 때, **정보 로그의 마지막 하트비트 + `error.log`의 마지막 에러**를 함께 보면 "언제까지 살아 있었고 무엇 때문에 멈췄나"가 드러난다. (DB 쪽에서는 `claimed_at`이 멈춘 row를 reaper가 회수하므로(10.3-4), 로그는 원인 진단, DB는 복구를 담당한다.)
 
-**Docker HEALTHCHECK 파일(`/tmp/healthcheck`) 갱신은 별도 백그라운드 스레드가 담당한다** (`app/scheduling/dispatcher.py:_start_healthcheck_thread`). 메인 루프의 로그 하트비트(위 문단)와 달리, 이 파일 갱신은 한 키워드 처리가 얼마나 오래 걸리든 `HEARTBEAT_INTERVAL_SECONDS` 주기로 계속 갱신된다 — google RSS 폴백처럼 한 키워드 안에서 URL 수십~백 개를 순차 처리하느라 다음 키워드로 넘어가기까지 수 분 걸리는 경우에도, Docker가 이를 hang으로 오판해 컨테이너를 강제 재시작하지 않도록 하기 위함이다(2026-07-11). google_news/baidu_news 어댑터에 이미 걸려있는 page-load 타임아웃 덕에 메인 스레드가 진짜로 무한정 멈추는 경우가 없어서, 이렇게 분리해도 실제 hang을 놓칠 위험은 낮다고 판단했다.
+**Docker HEALTHCHECK 파일(`/tmp/healthcheck`) 갱신은 별도 백그라운드 스레드가 담당한다** (`app/scheduling/dispatcher.py:_start_healthcheck_thread`). 메인 루프의 로그 하트비트(위 문단)와 달리, 이 파일 갱신은 한 키워드 처리가 얼마나 오래 걸리든 `HEARTBEAT_INTERVAL_SECONDS` 주기로 계속 갱신된다 — google RSS 폴백처럼 한 키워드 안에서 URL 수십~백 개를 순차 처리하느라 다음 키워드로 넘어가기까지 수 분 걸리는 경우에도, Docker가 이를 hang으로 오판해 컨테이너를 강제 재시작하지 않도록 하기 위함이다. google_news/baidu_news 어댑터에 이미 걸려있는 page-load 타임아웃 덕에 메인 스레드가 진짜로 무한정 멈추는 경우가 없어서, 이렇게 분리해도 실제 hang을 놓칠 위험은 낮다.
 
 ### 12.5 운영 편의
 
@@ -579,42 +578,24 @@ Traceback (most recent call last):
 
 각 단계는 그 자체로 실행/검증 가능한 상태를 목표로 한다.
 
-> **주의**: 아래 단계들은 discovery/extraction 분리 전(`keyword-crawler` 시절) 작성된 원래 빌드 순서다. 분리 리팩토링(41faf0b) 이후 Sink·Extractor·Fetcher(헤드리스)·규칙 엔진·reaper 관련 단계(2·3 일부·4·5·8·9·10·12)는 `extraction-worker` 프로젝트로 이동해 이미 완료되었고, 이 저장소에는 남아있지 않다. 히스토리 참고용으로만 남겨둔다.
-
-**0. 뼈대와 계약(contract).** 코드 살을 붙이기 전에 패키지 구조 + 포트 인터페이스(`SourceAdapter`, 분리 전에는 `Fetcher`/`Extractor`/`Sink`도 포함) + 핵심 데이터 타입(`DiscoverResult`, 분리 전에는 `Article`/`FetchResult`/`ExtractionFailure`도 포함)을 시그니처만 정의(구현은 비움). 설정 로딩과 로깅 골격(정보 로그 / 전용 `error.log` 분리)도 여기서. **가장 중요한 단계** — 여기서 경계가 잘 그어지면 나머지는 빈칸 채우기가 된다.
+**0. 뼈대와 계약(contract).** 코드 살을 붙이기 전에 패키지 구조 + 포트 인터페이스(`SourceAdapter`) + 핵심 데이터 타입(`DiscoverResult`)을 시그니처만 정의(구현은 비움). 설정 로딩과 로깅 골격(정보 로그 / 전용 `error.log` 분리)도 여기서. **가장 중요한 단계** — 여기서 경계가 잘 그어지면 나머지는 빈칸 채우기가 된다.
 → 검증: import 통과 + 타입 체크 통과.
 
-**1. 저장소 + 스키마.** MariaDB 10.5 테이블 3개 마이그레이션, `utf8mb4`, URL 정규화 + `url_hash`, `INSERT ... ON DUPLICATE KEY UPDATE` 중복 삽입, 낙관적 클레임(`UPDATE ... WHERE ... AND status=...` + `rowcount` 확인) 점유 쿼리. 다른 모듈에 의존하지 않아 가장 먼저 살을 붙이기 좋다.
+**1. 저장소 + 스키마.** MariaDB 10.5 테이블 마이그레이션, `utf8mb4`, URL 정규화 + `url_hash`, `INSERT ... ON DUPLICATE KEY UPDATE` 중복 삽입, 낙관적 클레임(`UPDATE ... WHERE ... AND status=...` + `rowcount` 확인) 점유 쿼리. 다른 모듈에 의존하지 않아 가장 먼저 살을 붙이기 좋다.
 → 검증: 단위 테스트 — 중복 삽입해도 한 row만 남는가, 점유 쿼리가 같은 row를 두 번 주지 않는가.
 
-**2. Sink(파일).** *(extraction-worker로 이동, 이 저장소에는 없음)* `Article`을 받아 jsonl로 쓰는 `FileSink`(0단계 포트 구현). `SolrSink`는 비워둠.
-→ 검증: Article 하나 넣으면 날짜·소스별 파일에 한 줄 쌓이는가.
-
-**3. Fetcher(정적).** discovery-worker는 `app/fetch/_client.py`(정적 HTTP)만 유지. 레이트리밋 + 프록시 인터페이스(단일 IP 구현) + 네트워크 재시도. 헤드리스(undetected-chromedriver)는 구글 어댑터 전용으로 남아있고, 그 외 소스는 정적 HTTP만 사용.
+**2. Fetcher(정적).** `app/fetch/_client.py`(정적 HTTP) — 레이트리밋 + 프록시 인터페이스(단일 IP 구현) + 네트워크 재시도. 헤드리스(undetected-chromedriver)는 Chrome 기반 어댑터(§2.2) 전용으로 별도 관리하고, 그 외 소스는 정적 HTTP만 사용.
 → 검증: 저장한 샘플·안전한 테스트 URL로 응답 확인.
 
-**4. 추출 코어.** *(extraction-worker로 이동, 이 저장소에는 없음)* 라이브러리 체인으로 본문 추출 + 성공/실패 판정 + 실패 분류. **저장해둔 콘텐츠 HTML 픽스처로 개발**(네트워크 없이 파서만 빠르게 반복; Fetcher와 분리돼 있다는 게 모듈화의 증거).
-→ 검증: 샘플 HTML 넣으면 기대한 제목·본문이 나오는가.
+**3. 발견(한 소스부터).** 소스 하나만 — 검색 → URL 목록 → 큐 적재. 디스패처 + cron 트리거 + 실행 겹침 잠금. 한 소스로 끝까지 동작시킨 뒤 같은 인터페이스로 나머지 소스를 추가.
+→ 검증: 키워드 하나로 발견 → 큐에 URL이 쌓이는가.
 
-**5. 추출 워커 루프.** *(extraction-worker로 이동, 이 저장소에는 없음)* 1~4를 조립 — 점유 → Fetcher → 추출 → 성공이면 Sink, 실패면 분류·백오프. **조립일 뿐 새 로직은 거의 없어야 한다**(새 로직이 많이 필요하면 앞 단계 경계가 잘못된 것).
-→ 검증: 큐에 URL 몇 개 넣고 워커를 돌리면 파일에 콘텐츠가 쌓이고, 실패한 건 상태가 바뀌는가.
+**4. 나머지 소스 어댑터.** 8절의 소스별 발견 전략과 `docs/adapter-catalog.md`를 참고해 하나씩 추가.
+→ 검증: 새 어댑터도 `make_adapter()`로 생성 가능하고 기존 어댑터와 동일한 dispatcher 루프에서 동작하는가.
 
-**6. 발견(한 소스부터).** 네이버 하나만 — 검색 → URL 목록 → 큐 적재. 디스패처 + cron 트리거 + 실행 겹침 잠금. 한 소스로 끝까지 동작시킨 뒤 다음·구글·바이두를 같은 인터페이스로 추가.
-→ 검증: 키워드 하나로 발견 → 큐에 URL이 쌓이고 5단계 워커가 처리(발견+추출이 처음 이어지는 순간).
+**5. 헤드리스 폴백.** Chrome 기반 어댑터(§2.2)의 Playwright/undetected-chromedriver 통합. 컨테이너 이미지에 브라우저 바이너리·폰트 포함 주의.
 
-**7. 나머지 소스 어댑터.** 다음 → 구글 → 바이두(전략 확정 후). 8절 소스별 발견 전략 적용.
-- 구글: `google.com/search?tbm=nws` 를 undetected-chromedriver 로 스크랩. RSS는 CBMi 리다이렉트 문제로 미사용 (`GOOGLE_DISCOVERY_MODE=rss` 로 대안 전환 가능).
-- 바이두: 미구현 (전략 미확정 — 해외 접속 차단 및 중국 프록시 필요 여부 선행 분석 필요).
-
-**8. 규칙 엔진 + 핫리로드.** *(extraction-worker로 이동, 이 저장소에는 없음)* `rules_json` 해석기 + TTL 캐시 + 규칙 우선 체인.
-
-**9. 운영 장치.** *(extraction-worker로 이동, 이 저장소에는 없음)* reaper, 도메인 차단기, dead-letter.
-
-**10. 헤드리스 폴백.** *(구글 어댑터 한정으로 discovery-worker에 일부 남음, 나머지는 extraction-worker 소관)* Playwright/undetected-chromedriver 통합. 컨테이너 이미지에 브라우저 바이너리·폰트 포함 주의.
-
-**11. 관리 UI/API.** 별도 프로젝트 `crawler-admin`(FastAPI + Jinja2)으로 구현. 규칙 편집·테스트(URL 대입 미리보기)·enable/version/rollback, 실패 재투입, run-now(`next_discover_at=now`), 드리프트 모니터링.
-
-**12. SolrSink (완료).** *(extraction-worker로 이동, 이 저장소에는 없음)* `SINK_TYPE=solr`로 전환. `crawl_id(url)`(lookup3ycs64 기반 16자 hex)를 문서 id로 upsert. FileSink 와 동일한 필드 포맷 사용.
+**6. 관리 UI/API.** 별도 프로젝트 `crawler-admin`(FastAPI + Jinja2)으로 구현. 규칙 편집·테스트(URL 대입 미리보기)·enable/version/rollback, 실패 재투입, run-now(`next_discover_at=now`), 드리프트 모니터링.
 
 ### 15.3 Claude Code 지시 팁
 

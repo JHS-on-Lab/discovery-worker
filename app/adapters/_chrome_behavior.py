@@ -1,9 +1,8 @@
 """
 Chrome 기반 어댑터(google_news/baidu_news) 공용 — 행동 자연화 헬퍼 + 종료 처리.
 
-google_news.py/baidu_news.py 에 각각 동일하게 구현돼 있던 걸(2026-07-29 품질
-리뷰) 모았다. _chrome_detect.py 가 "Chrome 실행 전 탐지"를 담당한다면, 이
-파일은 "띄운 뒤의 행동/종료"를 담당한다.
+_chrome_detect.py 가 "Chrome 실행 전 탐지"를 담당한다면, 이 파일은 "띄운 뒤의
+행동/종료"를 담당한다.
 """
 
 from __future__ import annotations

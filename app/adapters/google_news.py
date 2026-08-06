@@ -57,9 +57,9 @@ _RSS_URL    = "https://news.google.com/rss/search"
 # rss 모드 기간 제한. search 모드의 tbs=qdr:d 와 동일하게 "최근 1일"로 맞춘다.
 # 쿼리에 when:{N}d 를 안 넣으면 구글이 관련도 기준으로 최대 ~100건을 추려 반환하는데,
 # 그 후보군에 최대 3~4일치 기사가 다 섞여 경쟁하다 보니 관련도가 낮은 실제 최근(1일
-# 이내) 기사가 top 100 에서 밀려날 수 있다(2026-07-31 실측 — when: 없이 요청하면
-# 최대 80시간 전 기사까지 섞여 들어옴, when:1d 를 넣으면 후보군 자체가 1일 이내로
-# 좁혀져 가장 오래된 항목이 7.7시간 전으로 확 줄어듦). when:{N}d 로 후보군 자체를
+# 이내) 기사가 top 100 에서 밀려날 수 있다(when: 없이 요청하면 최대 80시간 전
+# 기사까지 섞여 들어오지만, when:1d 를 넣으면 후보군 자체가 1일 이내로 좁혀져
+# 가장 오래된 항목이 7.7시간 전 수준으로 줄어든다). when:{N}d 로 후보군 자체를
 # 좁혀 이 문제를 줄인다 — _parse_rss() 의 pubDate 사후 필터링은 pubDate 파싱 실패 시
 # fail-open 하는 안전장치로 그대로 남겨둔다(이중 방어, 서로 대체 관계 아님).
 _RSS_CUTOFF_DAYS = 1
@@ -73,11 +73,10 @@ _DEFAULT_MAX_PAGES = 5
 _DEFAULT_DELAY_SEC = 1.5
 
 # rss 폴백(_resolve_cbmi)이 실제 언론사 페이지를 방문할 때, 그 페이지의 광고/트래커
-# iframe(교차 출처)이 Chrome renderer 프로세스를 계속 늘려 메모리가 급증했다
-# (2026-07-28 mem 로그 실측). 이 도메인들을 호스트 리졸버 단에서 막으면 그 iframe
-# 자체가 탐색을 못 해 renderer 가 안 생긴다 — 실측(2026-07-29, 뉴스 5건)으로
-# renderer RSS 합계 약 39% 감소 확인(사이트별 8~59% 편차). google.com 페이징
-# 중엔 이 도메인들을 애초에 안 써서 부작용 없음.
+# iframe(교차 출처)이 Chrome renderer 프로세스를 계속 늘려 메모리가 급증한다.
+# 이 도메인들을 호스트 리졸버 단에서 막으면 그 iframe 자체가 탐색을 못 해 renderer
+# 가 안 생긴다 — renderer RSS 합계 약 39% 감소 효과가 있다(사이트별 8~59% 편차).
+# google.com 페이징 중엔 이 도메인들을 애초에 안 써서 부작용 없음.
 _AD_TRACKER_DOMAINS = (
     "doubleclick.net", "googlesyndication.com", "googletagmanager.com", "googletagservices.com",
     "google-analytics.com", "adservice.google.com", "adnxs.com", "criteo.com", "taboola.com",
@@ -114,8 +113,8 @@ def _wait_for_cbmi_redirect(driver, timeout: float = 10.0, poll_interval: float 
     자기 JS(광고/트래커 iframe 포함)를 실행하기 이전이므로, 빨리 감지해서(poll_interval
     단축) 끊을수록 그 페이지가 만드는 cross-origin iframe(=renderer 프로세스) 수가
     줄어든다 — 도메인 차단 목록에 없는 광고 네트워크가 있는 페이지에도 효과가 있다
-    (2026-07-29, 목록 기반 차단만으로 못 잡는 롱테일 대응). "news.google.com 을
-    벗어났는가"라는 URL 판별 기준 자체는 그대로라 기존 대비 URL 유실 위험은 없다 —
+    (목록 기반 차단만으로 못 잡는 롱테일 대응). "news.google.com 을 벗어났는가"라는
+    URL 판별 기준 자체는 그대로라 기존 대비 URL 유실 위험은 없다 —
     같은 시점에 잡는 값을 그대로 반환하고, 거기 이후의 불필요한 로딩만 끊는 것뿐이다.
     """
     deadline = time.monotonic() + timeout
@@ -387,14 +386,14 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
 
         CBMi 링크는 news.google.com 안에서 클라이언트사이드 JS 로 최종 언론사
         URL 을 알아내는 방식이라(순수 HTTP 는 302 하나만 타고 news.google.com
-        SPA 셸로 떨어짐 — httpx 로 직접 확인함, 2026-07-29) Chrome 이 필수다.
+        SPA 셸로 떨어짐) Chrome 이 필수다.
 
         URL 마다 새 탭을 열어 탐색하고, 확인 즉시 그 탭을 닫는다. 같은 탭에서
         driver.get() 으로 계속 이동만 하면 이전 페이지의 renderer(광고/트래커
         iframe 포함)가 Chrome 자체 유휴 프로세스 유지 정책 때문에 곧바로
-        정리되지 않고 그대로 쌓이는 반면(2026-07-29 실측 — 같은 탭 재사용 시
-        renderer 11→24개로 계속 누적), 탭을 명시적으로 닫으면 매 방문마다
-        거의 베이스라인으로 리셋된다(같은 조건에서 방문마다 3~5개로 복귀).
+        정리되지 않고 그대로 쌓이는 반면(같은 탭을 재사용하면 renderer 가
+        11→24개로 계속 누적된다), 탭을 명시적으로 닫으면 매 방문마다 거의
+        베이스라인으로 리셋된다(같은 조건에서 방문마다 3~5개 수준으로 복귀).
         그래서 배치 단위 브라우저 재시작 없이도 renderer 누적을 막을 수 있다.
 
         탭을 열거나 닫는 도중 hang 이 나면(chromedriver 커맨드 채널 자체가
@@ -420,11 +419,11 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
                     )
                 # URL 확보 즉시 탭을 닫는다 — _wait_for_cbmi_redirect() 의
                 # Page.stopLoading() 이후에도 그대로 열어두면 이미 실행 중인
-                # setTimeout/지연 스크립트가 계속 광고 iframe 을 만들 수 있어
-                # (2026-07-29 실측 — 탭을 안 닫고 1.5초 두면 renderer 11→21,
-                # 닫으면 5~18 수준으로 확인), stopLoading 의 이득이 죽기 전에
-                # 닫아버린다. 탐지 회피용 간격은 탭을 닫은 뒤(=다음 탐색 전)로
-                # 옮겨 페이지의 하위 리소스 로드를 기다리는 데 쓰이지 않게 한다.
+                # setTimeout/지연 스크립트가 계속 광고 iframe 을 만들 수 있다
+                # (탭을 안 닫고 1.5초 두면 renderer 가 11→21까지 늘지만, 닫으면
+                # 5~18 수준에 머문다). stopLoading 의 이득이 죽기 전에 닫아버린다.
+                # 탐지 회피용 간격은 탭을 닫은 뒤(=다음 탐색 전)로 옮겨 페이지의
+                # 하위 리소스 로드를 기다리는 데 쓰이지 않게 한다.
                 driver.close()
                 driver.switch_to.window(main_handle)
                 jitter_sleep(self._delay_sec)

@@ -15,7 +15,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # 이 프로젝트는 항상 KST 로 로그/타임스탬프를 다룬다 — env var 로 설정하는 값이
-# 아니라 고정 상수지만, 4개 파일에서 각자 선언하던 걸(2026-07-29 품질 리뷰) 모았다.
+# 아니라 고정 상수다.
 KST = timezone(timedelta(hours=9))
 
 # .env (공통) 먼저 로드 후 .env.{APP_ENV} 로 override.
@@ -89,7 +89,7 @@ BAIDU_PAGE_LOAD_TIMEOUT_SEC = _env_int("BAIDU_PAGE_LOAD_TIMEOUT_SEC", 30)
 
 # Chrome 영구 프로필 저장 경로 (Tinh tế 전용, WORKER_ID별 하위 디렉터리로 분리).
 # 검색 자체는 tinhte.vn 에 임베드된 Google CSE 위젯이라, curl/httpx는 물론
-# curl_cffi(TLS 지문 위장)로도 차단돼(2026-08-04 실측) 실제 브라우저가 필요하다.
+# curl_cffi(TLS 지문 위장)로도 차단돼 실제 브라우저가 필요하다.
 TINHTE_CHROME_PROFILE_DIR = _env("TINHTE_CHROME_PROFILE_DIR", "./chrome_profile_tinhte")
 
 # 페이지 로드 상한(초).

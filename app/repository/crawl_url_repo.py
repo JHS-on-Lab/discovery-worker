@@ -44,9 +44,9 @@ _INSERT_SQL = text("""
 """)
 
 # INSERT ... ON DUPLICATE KEY UPDATE 의 rowcount 는 "값이 안 바뀐 duplicate" 케이스를
-# 드라이버/DB 엔진에 따라 다르게 보고한다 — dev MySQL 8.4 실측 결과 신규 insert와
-# no-op duplicate 둘 다 rowcount=1로 나와 구분이 안 됨(2026-07-29). 그래서 신규/중복
-# 판단은 rowcount 대신 INSERT 전에 기존 url_hash 를 직접 조회해서 한다.
+# 드라이버/DB 엔진에 따라 다르게 보고한다 — MySQL 에서는 신규 insert 와 no-op
+# duplicate 둘 다 rowcount=1 로 나와 구분이 안 된다. 그래서 신규/중복 판단은
+# rowcount 대신 INSERT 전에 기존 url_hash 를 직접 조회해서 한다.
 _SELECT_EXISTING_HASHES_SQL = text(
     "SELECT url_hash FROM t_crawl_url WHERE url_hash IN :hashes"
 ).bindparams(bindparam("hashes", expanding=True))

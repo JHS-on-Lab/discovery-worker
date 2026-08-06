@@ -43,12 +43,12 @@
 
 **tinhte_forum 는 다른 패턴** — API/페이지를 스크랩하는 게 아니라 실제 검색창에
 타이핑하고 결과를 DOM에서 읽는다(tinhte.vn 검색이 사이트에 임베드된 Google Custom
-Search Engine 위젯이라, 그 내부 API를 직접 흉내내려는 시도가 전부 차단되거나
-브라우저 정책과 충돌해 실패했다 — `tinhte_forum.py` 모듈 docstring에 시행착오 전부
-기록됨). 그래서:
-  - `undetected_chromedriver` 대신 순정 `selenium.webdriver.Chrome()` 사용 — 이 환경에서
-    undetected_chromedriver + 최신 Chrome 버전 조합이 불안정했고, 사람처럼 타이핑하는
-    방식이라 UC의 스텔스 패치가 결정적이지 않았다.
+Search Engine 위젯이라, 그 내부 API를 직접 재현하려 하면 정적 요청이든 브라우저
+안에서의 스크립트 주입이든 차단되거나 브라우저 정책과 충돌한다 — 자세한 내용은
+`tinhte_forum.py` 모듈 docstring 참고). 그래서:
+  - `undetected_chromedriver` 대신 순정 `selenium.webdriver.Chrome()` 사용 — 사람처럼
+    타이핑하는 방식이라 UC의 스텔스 패치가 결정적이지 않고, 순정 selenium이 이
+    환경에서 더 안정적으로 동작한다.
   - 봇 차단 감지가 "검색창 요소 자체를 못 찾음" 하나뿐 — API를 직접 안 두드리니 API
     레벨 차단(`403`, reCAPTCHA 등) 신호가 이 어댑터에는 나타나지 않는다.
   - **새 소스가 "사이트 자체 검색이 아니라 제3자 위젯(구글 CSE 등)"인 경우**에 참고할

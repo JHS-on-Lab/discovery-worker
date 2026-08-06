@@ -12,6 +12,16 @@
 
 ---
 
+## 8ebbaba — 2026-08-04
+chore: 안 쓰는 masking_list.json 제거 + 문서 최신화
+
+- README.md
+- docs/commit-log.md
+- docs/db/schema.sql
+- docs/discovery-worker-design.md
+- docs/ops-commands.md
+- masking_list.json
+
 ## 68e1f00 — 2026-08-04
 feat: tinhte.vn(TINHTE_FORUM) 발견 어댑터 추가
 

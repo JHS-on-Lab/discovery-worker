@@ -21,8 +21,8 @@ chrome_crashpad 핸들러 등 일부 헬퍼 프로세스를 브라우저 프로�
 browser_pid 의 자손 트리에서 이미 벗어나(형제 관계가 되어) 컨테이너의
 PID 1(이 파이썬 프로세스)에 바로 reparent 된다 — kill_process_tree() 는
 특정 browser_pid 트리만 훑으므로 이런 detach 프로세스는 애초에 순회
-대상이 아니라서 SIGTERM/SIGKILL 도, reap 도 못 받는다(실측: PPID 가 전부
-이 파이썬 프로세스인 chrome_crashpad/chrome 좀비가 세션마다 누적).
+대상이 아니라서 SIGTERM/SIGKILL 도, reap 도 못 받는다. 그 결과 PPID 가
+전부 이 파이썬 프로세스인 chrome_crashpad/chrome 좀비가 세션마다 누적된다.
 
 reap_zombie_children() 은 특정 PID를 추적하지 않고 "내 자식 중 이미 끝난
 프로세스는 누구든 다 거둔다"는 표준 subreaper 패턴으로 이 detach 케이스까지

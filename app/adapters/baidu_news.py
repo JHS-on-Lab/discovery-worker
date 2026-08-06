@@ -1,26 +1,26 @@
 """
 바이두 뉴스 발견 어댑터.
 
-전략 (feasibility 테스트 단계 — decisions/baidu-discovery.md 참고):
+전략:
   www.baidu.com/s?tn=news&cl=2&word=... 로 뉴스(资讯) 탭 결과를 스크랩한다.
   - pn 파라미터로 페이지네이션 (0, 10, 20, ...)
   - 결과 링크는 baijiahao.baidu.com(바이두 자체 게시 플랫폼) 링크가 대부분이며,
     daum 의 cp.news.search.daum.net 과 달리 이 자체가 최종 콘텐츠 페이지라
     리다이렉트 해석 없이 그대로 저장한다.
 
-봇 차단 확인 결과 (2026-07-10):
+봇 차단:
   - 순수 HTTP 요청(httpx/curl)은 실서버 IP 에서도 100% wappass.baidu.com
-    캡차 페이지로 리다이렉트됨 — daum/naver 식 httpx 접근 불가 확정.
+    캡차 페이지로 리다이렉트된다 — daum/naver 식 httpx 접근은 불가능.
   - undetected-chromedriver 로 실제 브라우저 JS 를 실행했을 때도 막히는지는
-    아직 실서버에서 미검증 — 이 어댑터로 먼저 확인한다.
+    실서버에서 미검증 상태다.
   - google_news.py 와 동일한 행동 자연화 기법(영구 프로필, 지터, 스크롤 시뮬레이션)을
-    적용했다. 그래도 막히면 IP 평판 자체가 원인이므로 프록시 없이는 불가능하다고 판단.
+    적용했다. 그래도 막히면 IP 평판 자체가 원인이므로 프록시 없이는 불가능하다.
 
 파싱 셀렉터 미검증 경고:
   아래 _parse_urls 의 "#content_left" 기반 셀렉터는 바이두 일반 웹검색(SERP)의
-  잘 알려진 마크업 구조를 기반으로 한 최선의 추정치이며, 뉴스(tn=news) 탭에서
-  실제로 이 구조가 그대로 쓰이는지는 캡차를 통과한 real 페이지로 아직 확인하지
-  못했다. 캡차를 통과하면 driver.page_source 를 캡처해서 셀렉터를 재검증해야 한다.
+  잘 알려진 마크업 구조를 기반으로 한 추정치이며, 뉴스(tn=news) 탭에서 실제로
+  이 구조가 그대로 쓰이는지는 캡차를 통과한 real 페이지로 아직 확인하지 못했다.
+  캡차를 통과하면 driver.page_source 를 캡처해서 셀렉터를 재검증해야 한다.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ _SEARCH_URL = "https://www.baidu.com/s"
 
 _DEFAULT_DELAY_SEC = 1.5
 
-# 캡차/보안 확인 페이지 판별 시그니처 (2026-07-10 curl 테스트로 확인).
+# 캡차/보안 확인 페이지 판별 시그니처.
 _BLOCK_HOST_MARKERS = ("wappass.baidu.com",)
 _BLOCK_TITLE_MARKERS = ("百度安全验证",)
 

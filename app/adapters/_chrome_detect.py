@@ -2,8 +2,7 @@
 Chrome 바이너리 탐지 + Xvfb 가상 디스플레이 설정.
 
 google_news.py/baidu_news.py 가 undetected-chromedriver 를 띄우기 전에 공통으로
-쓰는 헬퍼 — 두 어댑터에 동일 로직이 중복돼 있던 걸(macOS 지원 추가 시 두 파일에
-같은 코드를 두 번 넣음, 2026-07-29) 여기로 모았다.
+쓰는 헬퍼.
 """
 
 from __future__ import annotations
