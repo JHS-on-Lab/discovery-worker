@@ -24,7 +24,7 @@ from selectolax.parser import HTMLParser
 from urllib.parse import urlparse
 
 from app import config
-from app.adapters._base import PaginatedAdapter
+from app.adapters._base import PaginatedAdapter, is_own_host, log_empty_or_blocked
 from app.fetch._client import make_client
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
@@ -78,17 +78,11 @@ class NaverNewsAdapter(PaginatedAdapter):
         urls, is_genuine_empty = _parse_urls(resp.text)
 
         if not urls:
-            if is_genuine_empty:
-                _log.debug(
-                    f"naver_news empty keyword='{keyword}' page={page_num} — 검색 결과 없음",
-                    extra={"component": "adapter"},
-                )
-            else:
-                _log.warning(
-                    f"naver_news blocked keyword='{keyword}' page={page_num} "
-                    f"— bot detection or sds-comps-base-layout change",
-                    extra={"component": "adapter"},
-                )
+            log_empty_or_blocked(
+                _log, "naver_news", keyword, page_num, is_genuine_empty,
+                "bot detection or sds-comps-base-layout change",
+            )
+            if not is_genuine_empty:
                 raise BotBlockedError(f"naver_news keyword='{keyword}' page={page_num}")
 
         has_more = len(urls) >= 10 and page_num < self._max_pages
@@ -120,9 +114,8 @@ def _parse_urls(html: str) -> tuple[list[str], bool]:
             continue
 
         parsed = urlparse(href)
-        host = parsed.netloc.lower()
 
-        if any(host == b or host.endswith("." + b) for b in _BLOCKED_HOSTS):
+        if is_own_host(parsed.netloc, _BLOCKED_HOSTS):
             continue
         if not parsed.path or parsed.path in ("", "/"):
             continue

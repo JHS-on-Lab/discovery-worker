@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 from selectolax.parser import HTMLParser
 
 from app import config
-from app.adapters._base import PaginatedAdapter
+from app.adapters._base import PaginatedAdapter, log_empty_or_blocked
 from app.fetch._client import make_client
 from app.types import DiscoverResult, SourceType
 
@@ -67,17 +67,10 @@ class BaomoiNewsAdapter(PaginatedAdapter):
         cards = _parse_cards(resp.text)
 
         if not cards:
-            if _is_genuine_empty(resp.text):
-                _log.debug(
-                    f"baomoi empty keyword='{keyword}' page={page} — 검색 결과 없음",
-                    extra={"component": "adapter"},
-                )
-            else:
-                _log.warning(
-                    f"baomoi no urls extracted keyword='{keyword}' page={page} "
-                    f"— bot detection or .bm-card selector change",
-                    extra={"component": "adapter"},
-                )
+            log_empty_or_blocked(
+                _log, "baomoi", keyword, page, _is_genuine_empty(resp.text),
+                "bot detection or .bm-card selector change",
+            )
             return DiscoverResult(urls=[], next_cursor=None, has_more=False)
 
         urls, cutoff_hit = _apply_cutoff(cards)

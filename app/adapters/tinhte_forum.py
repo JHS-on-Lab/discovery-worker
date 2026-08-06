@@ -65,7 +65,6 @@ import random
 import re
 import sys
 import time
-from pathlib import Path
 from urllib.parse import urlparse
 
 from selenium import webdriver
@@ -74,10 +73,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 from app import config
-from app.adapters import _profile_lock
 from app.adapters._base import page_limit_exceeded
 from app.adapters._chrome_behavior import ChromeLifecycleMixin, WINDOW_SIZES, jitter_sleep, simulate_reading
-from app.adapters._chrome_detect import detect_chrome_binary, ensure_xvfb
+from app.adapters._chrome_detect import ensure_xvfb, require_chrome_binary
+from app.adapters._profile_lock import acquire_profile_dir
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
 _log = logging.getLogger(__name__)
@@ -111,11 +110,7 @@ class TinhteForumAdapter(ChromeLifecycleMixin):
         max_pages: int | None = None,
         delay_sec: float = _DEFAULT_DELAY_SEC,
     ) -> None:
-        self._max_pages = max_pages or config.TINHTE_MAX_PAGES
-        self._delay_sec = delay_sec
-        self._driver = None
-        self._user_data_dir: str | None = None  # close() 에서 PID 재사용 방지 확인에 사용
-        self._profile_lock_file = None  # WORKER_ID 중복 감지용 flock 파일 핸들
+        super().__init__(max_pages or config.TINHTE_MAX_PAGES, delay_sec)
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
         page = int(cursor) if cursor else 1
@@ -148,13 +143,7 @@ class TinhteForumAdapter(ChromeLifecycleMixin):
     def _ensure_driver(self):
         if self._driver is None:
             ensure_xvfb()
-
-            chrome_binary = detect_chrome_binary()
-            if chrome_binary is None:
-                raise RuntimeError(
-                    "Chrome 바이너리를 찾을 수 없습니다. "
-                    "google-chrome 또는 chromium 을 설치하세요."
-                )
+            chrome_binary = require_chrome_binary()
 
             opts = ChromeOptions()
             opts.binary_location = chrome_binary
@@ -176,23 +165,24 @@ class TinhteForumAdapter(ChromeLifecycleMixin):
             if config.TINHTE_CHROME_PROFILE_DIR:
                 # 워커마다 독립된 프로필 디렉터리 — 매 실행마다 새 세션이 아니라
                 # 쿠키·로컬스토리지가 누적된 "돌아오는 사용자"처럼 보이게 한다.
-                profile_dir = Path(config.TINHTE_CHROME_PROFILE_DIR) / (config.WORKER_ID or "default")
-                profile_dir.mkdir(parents=True, exist_ok=True)
-                user_data_dir = str(profile_dir.resolve())
+                user_data_dir, self._profile_lock_file = acquire_profile_dir(
+                    config.TINHTE_CHROME_PROFILE_DIR, config.WORKER_ID
+                )
                 opts.add_argument(f"--user-data-dir={user_data_dir}")
-                self._profile_lock_file = _profile_lock.acquire(user_data_dir, config.WORKER_ID)
 
             self._user_data_dir = user_data_dir
 
-            try:
-                self._driver = webdriver.Chrome(options=opts)
-                self._driver.set_page_load_timeout(config.TINHTE_PAGE_LOAD_TIMEOUT_SEC)
-                self._driver.get(_HOME_URL)
+            def _build():
+                driver = webdriver.Chrome(options=opts)
+                driver.set_page_load_timeout(config.TINHTE_PAGE_LOAD_TIMEOUT_SEC)
+                # google_news.py/baidu_news.py 와 동일한 이유로 모든 webdriver 명령에
+                # 동일한 상한을 강제한다(set_page_load_timeout 은 탐색 명령에만 적용).
+                driver.command_executor.client_config.timeout = config.TINHTE_PAGE_LOAD_TIMEOUT_SEC
+                driver.get(_HOME_URL)
                 time.sleep(_INITIAL_LOAD_WAIT_SEC)  # GCSE 위젯 JS 초기화 대기
-            except Exception:
-                _profile_lock.release(self._profile_lock_file)
-                self._profile_lock_file = None
-                raise
+                return driver
+
+            self._build_driver_or_release(_build)
         return self._driver
 
     def _submit_search(self, driver, keyword: str) -> bool:

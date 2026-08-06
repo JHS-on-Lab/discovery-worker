@@ -69,6 +69,17 @@ def detect_chrome_binary() -> str | None:
     return None
 
 
+def require_chrome_binary() -> str:
+    """Chrome 바이너리 경로를 찾아 반환한다. 못 찾으면 RuntimeError."""
+    chrome_binary = detect_chrome_binary()
+    if chrome_binary is None:
+        raise RuntimeError(
+            "Chrome 바이너리를 찾을 수 없습니다. "
+            "google-chrome 또는 chromium 을 설치하세요."
+        )
+    return chrome_binary
+
+
 def detect_chrome_major() -> int | None:
     """설치된 Chrome 의 major 버전 반환. 감지 실패 시 None (uc 자동 감지에 위임)."""
     import re

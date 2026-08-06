@@ -34,10 +34,31 @@ def simulate_reading(driver) -> None:
 
 class ChromeLifecycleMixin:
     """
-    close()/__del__() 공용 구현. 이 믹스인을 쓰는 클래스는 __init__ 에서
-    self._driver / self._user_data_dir / self._profile_lock_file 를 설정해야 한다
-    (google_news.py/baidu_news.py 둘 다 이미 그렇게 하고 있음).
+    Chrome 기반 어댑터 공용 생성자 + close()/__del__() + 드라이버 기동 실패 처리.
     """
+
+    def __init__(self, max_pages: int, delay_sec: float) -> None:
+        self._max_pages = max_pages
+        self._delay_sec = delay_sec
+        self._driver = None
+        self._user_data_dir: str | None = None  # close() 에서 PID 재사용 방지 확인에 사용
+        self._profile_lock_file = None  # WORKER_ID 중복 감지용 flock 파일 핸들
+
+    def _build_driver_or_release(self, build):
+        """build() 로 드라이버를 생성해 self._driver 에 저장한다.
+
+        락을 잡은 뒤(self._profile_lock_file) Chrome 기동 자체가 실패하면, 락을
+        안 풀고 두면 같은 프로세스의 다음 재시도(_ensure_driver 재호출)가 자기
+        자신의 flock 에 걸려 self-lockout 난다(flock 은 파일이 아니라 open file
+        description 단위라 같은 프로세스라도 다시 열면 막힌다). 반드시 풀어준다.
+        """
+        try:
+            self._driver = build()
+        except Exception:
+            _profile_lock.release(self._profile_lock_file)
+            self._profile_lock_file = None
+            raise
+        return self._driver
 
     def close(self) -> None:
         if self._driver:

@@ -30,7 +30,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from selectolax.parser import HTMLParser
 
 from app import config
-from app.adapters._base import PaginatedAdapter
+from app.adapters._base import PaginatedAdapter, log_empty_or_blocked
 from app.fetch._client import make_client
 from app.types import BotBlockedError, DiscoverResult, SourceType
 
@@ -77,12 +77,13 @@ class DaumNewsAdapter(PaginatedAdapter):
 
         urls, is_genuine_empty = _parse_urls(resp.text)
 
-        if not urls and not is_genuine_empty:
-            _log.warning(
-                f"daum blocked keyword='{keyword}' page={page} — bot detection or tit_main change",
-                extra={"component": "adapter"},
+        if not urls:
+            log_empty_or_blocked(
+                _log, "daum_news", keyword, page, is_genuine_empty,
+                "bot detection or tit_main change",
             )
-            raise BotBlockedError(f"daum_news keyword='{keyword}' page={page}")
+            if not is_genuine_empty:
+                raise BotBlockedError(f"daum_news keyword='{keyword}' page={page}")
 
         with make_client(referer="https://search.daum.net/") as resolve_client:
             urls = _resolve_cp_redirects(urls, resolve_client)

@@ -39,15 +39,14 @@ import sys
 import time
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
-from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode
 from xml.etree import ElementTree as ET
 
 from app import config
-from app.adapters import _profile_lock
-from app.adapters._base import page_limit_exceeded
+from app.adapters._base import is_own_host, page_limit_exceeded
 from app.adapters._chrome_behavior import ChromeLifecycleMixin, WINDOW_SIZES, jitter_sleep, simulate_reading
-from app.adapters._chrome_detect import detect_chrome_binary, detect_chrome_major, ensure_xvfb
+from app.adapters._chrome_detect import detect_chrome_major, ensure_xvfb, require_chrome_binary
+from app.adapters._profile_lock import acquire_profile_dir
 from app.types import BotBlockedError, DiscoverMode, DiscoverResult, SourceType
 
 _log = logging.getLogger(__name__)
@@ -156,11 +155,7 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
         max_pages: int | None = None,
         delay_sec: float = _DEFAULT_DELAY_SEC,
     ) -> None:
-        self._max_pages = max_pages or config.GOOGLE_MAX_PAGES
-        self._delay_sec = delay_sec
-        self._driver = None
-        self._user_data_dir: str | None = None  # close() 에서 PID 재사용 방지 확인에 사용
-        self._profile_lock_file = None  # WORKER_ID 중복 감지용 flock 파일 핸들
+        super().__init__(max_pages or config.GOOGLE_MAX_PAGES, delay_sec)
         self._search_blocked_until: datetime | None = None  # 봇 차단 감지 시 rss 폴백 만료 시각
         self._region_host: str | None = None  # source_options_json.region 오버라이드 (없으면 기본 도메인)
         self._region_extra_params: dict[str, str] = {}  # 위 region 의 쿼리스트링(gl= 등) — 기본 hl/gl 을 덮어씀
@@ -182,13 +177,7 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
             import undetected_chromedriver as uc
 
             ensure_xvfb()
-
-            chrome_binary = detect_chrome_binary()
-            if chrome_binary is None:
-                raise RuntimeError(
-                    "Chrome 바이너리를 찾을 수 없습니다. "
-                    "google-chrome 또는 chromium 을 설치하세요."
-                )
+            chrome_binary = require_chrome_binary()
 
             opts = uc.ChromeOptions()
             opts.binary_location = chrome_binary
@@ -223,40 +212,30 @@ class UCGoogleNewsAdapter(ChromeLifecycleMixin):
             if config.GOOGLE_CHROME_PROFILE_DIR:
                 # 워커마다 독립된 프로필 디렉터리 — 매 실행마다 새 세션이 아니라
                 # 쿠키·로컬스토리지가 누적된 "돌아오는 사용자"처럼 보이게 한다.
-                # WORKER_ID 로 분리해 동시에 여러 워커가 같은 프로필을 잠그는 것을 방지.
-                profile_dir = Path(config.GOOGLE_CHROME_PROFILE_DIR) / (config.WORKER_ID or "default")
-                profile_dir.mkdir(parents=True, exist_ok=True)
-                user_data_dir = str(profile_dir.resolve())
-                # WORKER_ID 가 실수로 중복되면 위 분리만으로는 못 막는다 — flock 으로
-                # 실제 배타적 잠금을 걸어, 이미 다른 프로세스가 쓰고 있으면 애매한
-                # hang 대신 여기서 바로 명확하게 실패한다.
-                self._profile_lock_file = _profile_lock.acquire(user_data_dir, config.WORKER_ID)
+                user_data_dir, self._profile_lock_file = acquire_profile_dir(
+                    config.GOOGLE_CHROME_PROFILE_DIR, config.WORKER_ID
+                )
 
             self._user_data_dir = user_data_dir
 
-            try:
-                self._driver = uc.Chrome(
+            def _build():
+                driver = uc.Chrome(
                     options=opts,
                     headless=False,
                     use_subprocess=True,
                     version_main=detect_chrome_major(),
                     user_data_dir=user_data_dir,
                 )
-                self._driver.set_page_load_timeout(config.GOOGLE_PAGE_LOAD_TIMEOUT_SEC)
+                driver.set_page_load_timeout(config.GOOGLE_PAGE_LOAD_TIMEOUT_SEC)
                 # set_page_load_timeout 은 "탐색(navigation)" 명령에만 적용된다. chromedriver
                 # 자체가 응답 불능이 되면(브라우저 크래시/좀비 프로세스 등) current_url 읽기
                 # 같은 다른 명령들은 이 상한의 영향을 받지 않고 HTTP 클라이언트의 기본
                 # 소켓 타임아웃(환경에 따라 매우 길거나 없을 수 있음)에 그대로 노출된다.
                 # 모든 webdriver 명령에 동일한 상한을 명시적으로 강제한다.
-                self._driver.command_executor.client_config.timeout = config.GOOGLE_PAGE_LOAD_TIMEOUT_SEC
-            except Exception:
-                # 락을 잡은 뒤 Chrome 기동 자체가 실패하면, 락을 안 풀고 그대로 두면
-                # 같은 프로세스의 다음 재시도(_ensure_driver 재호출)가 자기 자신의
-                # flock 에 걸려 self-lockout 난다(flock 은 파일이 아니라 open file
-                # description 단위라 같은 프로세스라도 다시 열면 막힌다). 반드시 풀어준다.
-                _profile_lock.release(self._profile_lock_file)
-                self._profile_lock_file = None
-                raise
+                driver.command_executor.client_config.timeout = config.GOOGLE_PAGE_LOAD_TIMEOUT_SEC
+                return driver
+
+            self._build_driver_or_release(_build)
         return self._driver
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
@@ -504,7 +483,7 @@ def _extract_search_urls(driver) -> list[str]:
             continue
 
         parsed = urlparse(href)
-        if any(g in parsed.netloc.lower() for g in _GOOGLE_HOSTS):
+        if is_own_host(parsed.netloc, _GOOGLE_HOSTS):
             continue
         if not parsed.path or parsed.path == "/":
             continue

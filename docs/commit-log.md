@@ -12,6 +12,24 @@
 
 ---
 
+## 65d27d4 — 2026-08-06
+docs: 주석/설계문서에서 날짜·시행착오 서술 제거, 최초 버전처럼 정리
+
+- app/adapters/_chrome_behavior.py
+- app/adapters/_chrome_detect.py
+- app/adapters/_process_kill.py
+- app/adapters/_profile_lock.py
+- app/adapters/baidu_news.py
+- app/adapters/baomoi_news.py
+- app/adapters/google_news.py
+- app/adapters/tinhte_forum.py
+- app/config.py
+- app/repository/crawl_url_repo.py
+- app/repository/db.py
+- docs/adapter-catalog.md
+- docs/commit-log.md
+- docs/discovery-worker-design.md
+
 ## 8ebbaba — 2026-08-04
 chore: 안 쓰는 masking_list.json 제거 + 문서 최신화
 

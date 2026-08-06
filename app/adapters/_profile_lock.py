@@ -74,6 +74,16 @@ def acquire(profile_dir: str, worker_id: str) -> IO | None:
     return f
 
 
+def acquire_profile_dir(base_dir: str, worker_id: str) -> tuple[str, IO | None]:
+    """워커별 프로필 하위 디렉터리(base_dir/worker_id)를 만들고 acquire() 로 잠근다.
+    반환된 락 파일은 실패 시 release() 로 반드시 풀어야 self-lockout 을 피한다."""
+    profile_dir = Path(base_dir) / (worker_id or "default")
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    user_data_dir = str(profile_dir.resolve())
+    lock_file = acquire(user_data_dir, worker_id)
+    return user_data_dir, lock_file
+
+
 def release(lock_file: IO | None) -> None:
     if lock_file is None:
         return

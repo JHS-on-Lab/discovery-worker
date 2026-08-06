@@ -83,17 +83,33 @@ def discover(self, keyword: str, cursor: str | None) -> DiscoverResult: ...
   5회·30분 간격)으로 처리. 결과가 0건이라고 무조건 던지면 안 되고, 실제 차단 신호가
   있을 때만(§8.2, §8.3 참고 — 정상 소진과 진짜 차단을 구분 못 하면 오탐 쌓임).
 
-### `app/adapters/_base.py` — `PaginatedAdapter`
+### `app/adapters/_base.py` — `PaginatedAdapter` + 정적 어댑터 공용 헬퍼
 
 `period`/`max_pages`/`delay_ms`를 갖는 정적 HTTP 계열 어댑터의 공통 베이스.
 `_exceeded(page_num)`(페이지 상한 체크), `_delay(is_first)`(첫 페이지 아니면 딜레이)를
-제공. Chrome 기반 어댑터(`google_news`/`baidu_news`)는 이걸 상속하지 않고
-`page_limit_exceeded()` 함수만 재사용한다(각자 `_ensure_driver()` 등 별도 라이프사이클이
-있어 생성자 시그니처가 다름).
+제공. Chrome 기반 어댑터(`google_news`/`baidu_news`/`tinhte_forum`)는 이걸 상속하지 않고
+`page_limit_exceeded()` 함수만 재사용한다(각자 `ChromeLifecycleMixin` 라이프사이클을 쓴다).
 
 > **주의**: `PaginatedAdapter.__init__(period, max_pages, delay_ms)`는 위치 인자로
 > 호출하는 곳이 3곳(naver_news/daum_news/duckduckgo_news) 있다. 매개변수 순서를
 > 바꾸면 값이 조용히 뒤바뀌는 회귀가 생기니 바꾸려면 호출부 전체를 같이 고칠 것.
+
+같은 파일의 `is_own_host(netloc, own_hosts)`(검색엔진 자체 도메인 결과 제외 —
+naver_news/google_news 사용)와 `log_empty_or_blocked(logger, source, keyword,
+page, is_genuine_empty, block_reason)`(빈 결과를 "진짜 빈 결과"와 "차단 의심"으로
+구분해 로깅 — naver_news/daum_news/baomoi_news 사용)는 정적/Chrome 어댑터 전체가
+공유하는 범용 헬퍼라 `PaginatedAdapter` 밖의 모듈 레벨 함수로 뒀다. `BotBlockedError`를
+던질지는 소스마다 다르므로(baomoi 는 안 던지고 경고만 남김) 판단은 호출부 몫이다.
+
+### `app/adapters/_chrome_behavior.py` — `ChromeLifecycleMixin`
+
+Chrome 기반 어댑터(`google_news`/`baidu_news`/`tinhte_forum`) 공용 베이스.
+`__init__(max_pages, delay_sec)`으로 `_max_pages`/`_delay_sec`/`_driver`/
+`_user_data_dir`/`_profile_lock_file` 를 초기화하고, `_build_driver_or_release(build)`
+로 드라이버 생성을 감싸 기동 실패 시 프로필 락을 반드시 풀어준다(안 풀면 같은
+프로세스의 다음 재시도가 자기 자신의 flock 에 걸려 self-lockout 난다). `close()`/
+`__del__()` 도 여기서 공용 구현. 서브클래스는 `super().__init__(max_pages, delay_sec)`
+호출 후 자기만의 필드(google_news 의 `_search_blocked_until` 등)를 추가하면 된다.
 
 ### `app/adapters/__init__.py` — `make_adapter(source_type, max_pages=None)`
 
