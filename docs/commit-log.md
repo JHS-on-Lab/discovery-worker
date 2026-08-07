@@ -12,6 +12,14 @@
 
 ---
 
+## 3fcaedc — 2026-08-06
+fix: build.sh 의 APP_UID/APP_GID 를 배포 계정 실값(1001)으로 재고정
+
+- Dockerfile
+- deploy/build.sh
+- deploy/run.sh
+- docs/commit-log.md
+
 ## 60e2174 — 2026-08-06
 fix: build.sh/run.sh UID 처리를 동적 방식으로 되돌리고 run.sh --user 제거
 
