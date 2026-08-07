@@ -12,6 +12,14 @@
 
 ---
 
+## dd7fc66 — 2026-08-06
+fix: build.sh 의 APP_UID/APP_GID 를 다시 동적($(id -u)/$(id -g))으로 변경
+
+- Dockerfile
+- deploy/build.sh
+- deploy/run.sh
+- docs/commit-log.md
+
 ## 3fcaedc — 2026-08-06
 fix: build.sh 의 APP_UID/APP_GID 를 배포 계정 실값(1001)으로 재고정
 

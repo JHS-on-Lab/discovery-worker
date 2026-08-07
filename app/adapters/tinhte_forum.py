@@ -113,6 +113,7 @@ class TinhteForumAdapter(ChromeLifecycleMixin):
         delay_sec: float = _DEFAULT_DELAY_SEC,
     ) -> None:
         super().__init__(max_pages or config.TINHTE_MAX_PAGES, delay_sec)
+        self._search_performed = False  # 이 세션에서 검색을 한 번이라도 했는지
 
     def discover(self, keyword: str, cursor: str | None) -> DiscoverResult:
         page = int(cursor) if cursor else 1
@@ -124,8 +125,17 @@ class TinhteForumAdapter(ChromeLifecycleMixin):
         driver = self._ensure_driver()
 
         if page == 1:
+            if self._search_performed:
+                # 검색 결과가 표시된 상태에서는 검색창(input.gsc-input)이 GCSE
+                # 위젯 자체에 의해 숨겨진다(실측: is_displayed=False, 값은 이전
+                # 검색어가 그대로 남아있음) — 같은 어댑터 인스턴스가 다음 키워드를
+                # 이어서 처리할 때 검색창을 못 찾는 원인. 홈으로 다시 이동하면
+                # 위젯이 초기 상태로 재렌더링된다.
+                driver.get(_HOME_URL)
+                time.sleep(_INITIAL_LOAD_WAIT_SEC)
             if not self._submit_search(driver, keyword):
                 raise BotBlockedError(f"tinhte_forum keyword='{keyword}' — 검색창을 못 찾음(구조 변경 또는 차단)")
+            self._search_performed = True
         else:
             if not self._go_to_page(driver, page):
                 # 그 페이지 번호 버튼이 없음 — 결과가 그만큼 없다는 뜻(정상 종료)
@@ -191,14 +201,7 @@ class TinhteForumAdapter(ChromeLifecycleMixin):
 
     def _submit_search(self, driver, keyword: str) -> bool:
         """검색창을 찾아 키워드를 입력하고 엔터로 제출한다. 검색창을 못 찾으면 False."""
-        deadline = time.monotonic() + _SEARCH_BOX_TIMEOUT_SEC
-        inp = None
-        while time.monotonic() < deadline:
-            elements = driver.find_elements(By.CSS_SELECTOR, _SEARCH_INPUT_SELECTOR)
-            if elements:
-                inp = elements[0]
-                break
-            time.sleep(_SEARCH_BOX_POLL_SEC)
+        inp = _wait_for_visible_element(driver, _SEARCH_INPUT_SELECTOR, _SEARCH_BOX_TIMEOUT_SEC)
         if inp is None:
             return False
 
@@ -220,6 +223,27 @@ class TinhteForumAdapter(ChromeLifecycleMixin):
             return False
         buttons[page - 1].click()
         return True
+
+
+def _wait_for_visible_element(driver, css_selector: str, timeout_sec: float):
+    """css_selector 에 매칭되는 요소 중 실제로 보이고(is_displayed) 활성화된
+    (is_enabled) 것을 찾을 때까지 폴링한다. 못 찾으면 None.
+
+    DOM에 존재하는 것과 클릭 가능한 것은 다르다 — GCSE 위젯은 요소를 먼저
+    삽입해두고 실제로 보이게 만드는 건 약간 뒤에 하는 경우가 있어(존재만
+    확인하고 바로 click() 하면 ElementNotInteractableException), 그리고
+    동일 셀렉터가 페이지에 둘 이상 있을 수 있어(예: 검색창 자체와 결과 안의
+    검색창을 GCSE가 각각 렌더링) 첫 번째 매치가 항상 보이는 것도 아니다."""
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        for el in driver.find_elements(By.CSS_SELECTOR, css_selector):
+            try:
+                if el.is_displayed() and el.is_enabled():
+                    return el
+            except Exception:
+                continue  # stale element 등 — 다음 폴링에서 다시 찾음
+        time.sleep(_SEARCH_BOX_POLL_SEC)
+    return None
 
 
 def _sort_by_date(driver) -> None:
